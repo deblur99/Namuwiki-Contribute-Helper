@@ -1,0 +1,5 @@
+# Prettier는 마크다운 불릿(*, -)을 정규화하므로 위키 문서는 포맷 대상에서 제외
+*.md
+*.mdx
+**/templates/
+**/outputs/
