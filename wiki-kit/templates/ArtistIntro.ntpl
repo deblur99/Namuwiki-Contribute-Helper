@@ -1,0 +1,48 @@
+---
+name: ArtistIntro
+kind: template
+description: 아티스트 소개 문서 골격 (컴포넌트 조합 예시)
+props:
+  categories:
+    type: string
+    required: true
+  includeFrame:
+    type: string
+    required: true
+  title:
+    type: string
+    required: true
+  image:
+    type: string
+    required: false
+    default: "${designSystem.profileImage}"
+  birthName:
+    type: string
+    required: true
+  birth:
+    type: string
+    required: true
+  overview:
+    type: string
+    required: true
+  trivia:
+    type: string
+    required: false
+    default: ""
+---
+[@Categories items="${props.categories}" /]
+[include(${props.includeFrame})]
+[@Infobox title="${props.title}" image="${props.image}"]
+[@InfoboxRow label="본명" value="${props.birthName}" /]
+[@InfoboxRow label="출생" value="${props.birth}" /]
+[/@Infobox]
+
+[목차]
+[clearfix]
+== 개요 ==
+${props.overview}
+
+[@IfTruthy value="${props.trivia}"]
+== 여담 ==
+${props.trivia}
+[/@IfTruthy]

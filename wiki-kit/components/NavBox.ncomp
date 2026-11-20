@@ -1,0 +1,24 @@
+---
+name: NavBox
+kind: component
+description: 둘러보기 틀 헤더 + 링크 줄
+props:
+  title:
+    type: string
+    required: true
+  subtitle:
+    type: string
+    default: "관련 문서"
+  logo:
+    type: string
+    required: true
+  links:
+    type: string
+    required: true
+---
+||<:><tablewidth=100%><${designSystem.accentColor}>{{{#!wiki style="margin: -5px -10px; padding: 5px 10px;
+[[${props.title}|{{{#!wiki style="display: inline-flex; vertical-align: middle; margin-right: 4px;"
+[[${props.logo}|width=100&align=left]]}}}{{{#!wiki style="display: inline-flex; vertical-align: middle; text-align: left"
+{{{${designSystem.whiteShort} '''{{{+1 ${props.title}}}}'''[br]{{{-1 '''${props.subtitle}'''}}}}}}}}}]]}}}||
+||<:>${props.links}
+||

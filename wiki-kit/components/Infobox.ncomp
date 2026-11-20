@@ -1,0 +1,19 @@
+---
+name: Infobox
+kind: component
+description: 우측 정렬 인포박스 래퍼 (children에 InfoboxRow 등)
+props:
+  title:
+    type: string
+    required: true
+  image:
+    type: string
+    required: false
+    default: ""
+  children:
+    type: string
+    required: false
+---
+||<-2><tablealign=right><tablewidth=500><tablebordercolor=${designSystem.accentColor}><tablebgcolor=${designSystem.tableBgIntro}><colbgcolor=${designSystem.accentColor}><colcolor=${designSystem.whiteShort}> {{{+1 '''${props.title}'''}}} ||
+[@InfoboxImage src="${props.image}" /]
+${props.children}

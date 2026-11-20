@@ -1,0 +1,10 @@
+---
+name: Categories
+kind: component
+description: 분류 링크들을 이어 붙인 한 줄
+props:
+  items:
+    type: string
+    required: true
+---
+${props.items}

@@ -1,0 +1,13 @@
+---
+name: InfoboxImage
+kind: component
+description: 이미지가 있을 때만 인포박스 이미지 행 출력
+props:
+  src:
+    type: string
+    required: false
+    default: ""
+---
+[@IfTruthy value="${props.src}"]
+||<-2><nopad> [[${props.src}|width=100%]] ||
+[/@IfTruthy]

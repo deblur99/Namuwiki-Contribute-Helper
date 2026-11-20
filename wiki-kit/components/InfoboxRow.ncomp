@@ -1,0 +1,16 @@
+---
+name: InfoboxRow
+kind: component
+description: 인포박스 한 줄 (라벨 | 값)
+props:
+  label:
+    type: string
+    required: true
+  value:
+    type: string
+    required: true
+  width:
+    type: string
+    default: "85"
+---
+||<width=${props.width}> '''${props.label}''' ||${props.value} ||

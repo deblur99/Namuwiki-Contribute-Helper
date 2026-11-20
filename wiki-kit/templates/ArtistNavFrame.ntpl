@@ -1,0 +1,21 @@
+---
+name: ArtistNavFrame
+kind: template
+description: 둘러보기 틀 문서 골격
+props:
+  categories:
+    type: string
+    required: true
+  title:
+    type: string
+    required: true
+  logo:
+    type: string
+    required: true
+  links:
+    type: string
+    required: true
+---
+[@Categories items="${props.categories}" /]
+
+[@NavBox title="${props.title}" logo="${props.logo}" links="${props.links}" /]

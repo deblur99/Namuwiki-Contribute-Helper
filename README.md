@@ -8,7 +8,8 @@
 
 ```
 Namuwiki-Contribute-Helper/
-├── scripts/build.py      # 공통 빌드
+├── scripts/build.py      # 공통 빌드 (레거시: 토큰 치환)
+├── wiki-kit/             # 초안: 컴포넌트·템플릿·검증·빌드
 ├── README.md
 ├── RULES.md
 └── 김마리/                 # 프로젝트 예시
@@ -16,6 +17,8 @@ Namuwiki-Contribute-Helper/
     ├── templates/        # 편집용 원본 (${designSystem.*} 토큰)
     └── outputs/          # 위키에 붙여넣을 결과 (gitignore)
 ```
+
+컴포넌트 단위 조립은 [wiki-kit/README.md](wiki-kit/README.md)를 본다.
 
 새 프로젝트는 `김마리/`와 같이 `{이름}/data|templates|outputs`만 추가하면 됩니다.
 
