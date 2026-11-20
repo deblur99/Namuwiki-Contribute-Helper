@@ -1,0 +1,590 @@
+/*
+[파일 역할] nwiki 문법·타입·검증 규칙 스펙 (엔진 입력 아님)
+[규칙]
+- UI와 관련 없는 부분은 메서드 호출하는 것처럼, UI와 관련 있는 부분은 마크업 언어처럼 작성한다.
+- 실행 예제: examples/introduce.nwiki
+- 재사용 템플릿 예: examples/ProfileTable.nwiki
+*/
+
+<!-- 분류 / include: 메서드 호출. 문서는 examples/introduce.nwiki, 스펙은 아래 유틸 함수 절 참고. -->
+
+<!-- 테이블 -->
+/*
+    1) 타입 선언
+    <Table width=LayoutLength align=TableAlignment.center borderColor=HexColor(light="#FFFFFF", dark="#1C1D1F") bgColor=HexColor></Table>
+
+    2) 풀어서 쓰기
+    - borderColor: 바깥에서는 raw 문자열로 hex(#RGB 또는 #RRGGBB)를 넘긴다. 내부에서는 아래 HexColor처럼 처리된다.
+    <Table width=LayoutLength align=TableAlignment.right borderColor=HexColor bgColor=HexColor></Table>
+
+    3) 줄여서 쓰기
+    <Table align=.right></Table>
+
+    - 테이블 관련 속성은 다음과 같다.
+
+    /// 표 자체 위치 (right 플로트 등) — 내부 텍스트 정렬 아님
+    enum TableAlignment: Alignment {
+        case left, center, right
+    }
+
+    /// raw hex 문자열을 검증한 뒤 wikiValue로 직렬화한다.
+    /// 입력: #RGB(3) 또는 #RRGGBB(6). # 없으면 붙여서 파싱. 대소문자 무시.
+    /// 출력: 입력 자릿수 유지 (3자리를 6자리로 강제 확장하지 않음).
+    /// 나무위키는 #RRGGBBAA(8)·#RGBA(4) 투명 헥스를 지원하지 않는다 → 빌드 에러.
+    /// 투명도는 RgbaColor / opacity / Gradient 스톱의 .transparent 를 쓴다.
+    struct HexColor {
+        enum Kind {
+            case rgb3(r: UInt4, g: UInt4, b: UInt4)   // #RGB
+            case rgb6(r: UInt8, g: UInt8, b: UInt8)   // #RRGGBB
+        }
+        var light: Kind
+        var dark: Kind  // 단일 인자 init이면 light == dark
+
+        init?(_ color: String) { /* parse → Kind; light = dark */ }
+        init?(light: String, dark: String) { … }
+
+        var wikiValue: String {
+            // rgb3 → "#abc" / rgb6 → "#aabbcc"
+            // light≠dark 이면 "light,dark"
+            return result
+        }
+    }
+
+    /// CSS rgba() — 나무위키 wiki style / 그라데이션 투명도에 사용
+    struct RgbaColor {
+        init(_ r: Int, _ g: Int, _ b: Int, _ a: Float)  // r,g,b 0...255, a 0...1
+        // → rgba(r, g, b, a)
+    }
+*/
+
+<!-- 테이블 Row -->
+/*
+    <TableRow alignment=TableRowAlignment.left>
+
+    - Table 안에 TableRow, TableRow 안에는 **TableColumn만** 둔다.
+    - Row에 Text / Image / Link 등을 직속 배치하지 않는다.
+      컨텐츠는 반드시 Column 이상 하나를 거친 뒤에 넣는다. (최소 Column 1개)
+    - 검증: Row children이 비어 있거나 Column이 아닌 노드가 있으면 빌드 에러.
+
+    enum TableRowAlignment: Alignment {
+        case left, center, right
+    }
+*/
+
+<!-- 테이블 Column -->
+/*
+    <TableColumn width=LayoutLength? bgColor=HexColor? alignment=TableColumnAlignment? delimiter=String? colSpan=Int? nopad=Bool?>
+
+    // 기존 태그 기반: <width=85> <-2> <nopad> <colbgcolor=…> <colcolor=…>
+    // <TableColumn colBgColor=HexColor colColor=HexColor >  // 구 표기
+
+    - TableRow의 직접 자식은 TableColumn만 허용. 컨텐츠(Text, Image, …)는 Column 안에만 둔다.
+    - TableRow 안에 TableColumn이 온 개수만큼 Row 내부의 공간을 자동으로 차지한다.
+    - 제목·프로필 이미지처럼 여러 열을 합칠 때 colSpan 사용 (위키 `<-n>`). nopad는 이미지 행 등에 사용.
+    - width가 있는 열을 먼저 반영하고, 미지정 열은 남은 공간을 나눈다.
+      예: 열이 3개이고 width가 35, 45, 미지정 → 미지정 열이 나머지 차지.
+    - width는 표·이미지 등 레이아웃 공용 타입 LayoutLength를 쓴다. 위키 셀은 보통 point (`<width=85>`).
+      percent가 필요하면 LayoutLength(50, .percent) → `<width=50%>` 로 직렬화.
+    - 기존에는 colBgColor, colColor 두 속성으로 구성되었다. 여기서는 colBgColor, 즉 bgColor만 사용된다.
+        - colColor의 경우 TableColumn 항목의 텍스트 색상인데, 이는 별도의 Text 컴포넌트에서 관리하는 부분이므로 컴파일 시 Text의 색상이 자동으로 기존 colColor 속성으로 넘어가게 된다.
+    - delimiter 구분자 속성을 도입하여, 시작 요소의 앞부분과 끝 요소의 뒷부분을 제외한 그 사이 요소들 간 문자열을 자동으로 끼워넣을 수 있다.
+    - Comment는 직전 형제에 붙는 접미이므로, delimiter를 넣을 때 Comment **앞**에는 구분자를 넣지 않는다.
+      (Comment 내부 children에도 바깥 Column의 delimiter를 적용하지 않음 — 주석 섹션 참고)
+
+    - TableColumn 관련 속성은 아래와 같다.
+
+    enum TableColumnAlignment: Alignment {
+        case left, center, right
+    }
+
+    사용 예 1:
+    <TableColumn width=LayoutLength(85)>
+        <Text text="본명" weight=.bold />
+    </TableColumn>
+    <TableColumn>
+        <Text text="김현지" />
+    </TableColumn>
+
+    사용 예 2 (구분자 사용):
+    <TableColumn delimiter=" | ">
+        <Link toExternal="https://www.instagram.com/for.marie/">
+            <Image fileName="인스타그램 아이콘.svg" width=LayoutLength(20) />
+        </Link>
+        <Link toExternal="https://www.youtube.com/channel/UCZEEMIdKlyvk6MC1u65WIHw">
+            <Image fileName="유튜브 아이콘.svg" width=LayoutLength(20) />
+        </Link>
+        <Link toExternal="https://soundcloud.com/formarie0-0">
+            <Image fileName="사운드클라우드 아이콘.svg" width=LayoutLength(20) />
+        </Link>
+        <Link toExternal="https://gall.dcinside.com/kimmarie">
+            <Image fileName="디시인사이드 아이콘.svg" width=LayoutLength(20) />
+        </Link>
+    </TableColumn>
+
+    - 컴파일하면 `Link | Link | Link | Link` 를 기대한다.
+*/
+
+<!-- 텍스트 -->
+/*
+    <Text text=String size=TextSize color=HexColor weight=TextWeight decoration=[TextDecoration] alignment=TextAlignment ...>
+
+    <Text typography=Typography>
+
+    - 기본 속성은 크게 5가지이며 나머지는 추후 확장될 수 있음
+    - 혹은 미리 지정한 Typography 타입이 있다면 그걸 통째로 넘기는 것도 가능함
+    
+    텍스트 관련 속성은 아래와 같다.
+
+    1) TextSize
+    enum SizeMetric {
+        case pt, rem
+    }
+
+    struct TextSize {
+        enum Kind {
+            case absolute(point: Float, metric: SizeMetric)
+            case step(Int)  // -5...5, 0 = 기본 크기
+        }
+        let kind: Kind
+
+        /// 위키 문법에서 지원하는 상대 크기 (`{{{+3}}}`) 문법 대응
+        static func step(_ value: Int) throws -> TextSize {
+            let allowedBoundary: ClosedRange<Int> = -5...5
+            guard allowedBoundary.contains(value) else { throw OutOfBoundsException }
+            return TextSize(kind: .step(value))
+        }
+
+        init(_ point: Float, _ metric: SizeMetric = .pt) {
+            self.kind = .absolute(point: point, metric: metric)
+        }
+    }
+
+    2) TextWeight
+    enum TextWeight: Int {
+        case thin = 100
+        case extraLight = 200
+        case light = 300
+        case regular = 400
+        case normal = 400
+        case medium = 500
+        case semiBold = 600
+        case bold = 700
+        case extraBold = 800
+        case black = 900
+    }
+
+    3) TextDecoration
+    // - none도 있으나 optional 문법이 있기 때문에 그냥 안 넘기거나, nil로 넘기면 된다.
+    enum TextDecoration {
+        case underline
+        case overline
+        case line-through
+    }
+
+    struct TextDecorations {
+        var decorations: [TextDecoration] = []
+    }
+
+    4) TextAlignment
+    enum TextAlignment: Alignment {
+        case left
+        case right
+        case center
+        case justify
+        case start
+        case end
+    }
+*/
+
+<!-- 텍스트 파생 컴포넌트 -->
+/*
+    1) 타이틀
+    <TitleText text="김마리" />
+
+    - TitleText에 기본 적용된 Text 속성은 다음과 같다.
+
+    <Text text="" size=.step(1) color=HexColor(light="#8e8e8e", dark="#ffffff"), weight=.bold />
+*/
+
+
+<!-- 이미지 -->
+/*
+    1) "파일:파일명.png" 형식으로, 위키에 업로드된 파일을 불러오는 경우 사용
+    <Image fileName=String width=LayoutLength? height=LayoutLength?>
+
+    2) 외부 URL 형식으로, 외부에서 이미지를 불러오는 경우 사용
+    <Image src=URL width=LayoutLength? height=LayoutLength?>
+
+    - 앞부분 파일 경로(또는 src)는 필수며, 뒤에 레이아웃 관련 속성은 선택사항이다.
+    - 기본은 width만 지정하고 height는 생략해 비율을 유지한다.
+    - width·height를 함께 주면 빌드 시 width=…&height=… 형태로 직렬화한다.
+
+    - 크기 관련 속성은 다음과 같다.
+
+    struct LayoutLength {
+        enum LengthType {
+            case point    // 위키: width=100
+            case percent  // 위키: width=100%
+        }
+
+        let length: Float
+        let type: LengthType
+
+        init(_ length: Float, _ type: LengthType = .point) {
+            self.length = length
+            self.type = type
+        }
+
+        /// percent일 때 0...100, point일 때 length > 0 검증. 실패 시 빌드 에러.
+        var wikiValue: String {
+            // .point   → "100"
+            // .percent → "100%"
+            return result
+        }
+    }
+
+    - 사용 예:
+    <Image fileName="프로필.jpg" width=LayoutLength(100) />
+    <Image fileName="프로필.jpg" width=LayoutLength(100, .percent) />
+    <Image fileName="프로필.jpg" width=LayoutLength(100) height=LayoutLength(80) />
+*/
+
+<!-- 링크 -->
+/*
+    위키: [[대상|표시]] / [[대상]] (표시 생략 시 대상명과 동일)
+    라벨은 Text(또는 label 문자열), Image 모두 사용 가능.
+
+    1) children = 표시 라벨
+    <Link toDocument="음반 목록">
+        <Text text="음반" />
+    </Link>
+    → [[음반 목록|음반]]
+
+    <Link toExternal="https://www.youtube.com/watch?v=example">
+        <Text text="전체 듣기" />
+    </Link>
+    → [[https://www.youtube.com/watch?v=example|전체 듣기]]
+
+    2) label 단축 (children 없이)
+    <Link toDocument="음반 목록" label="음반" />
+    → [[음반 목록|음반]]
+
+    <Link toDocument="가수" />
+    → [[가수]]  (label·children 모두 없으면 표시 = 대상)
+
+    3) 하위 문서 (상대 경로)
+    <Link toDocument="/음반 목록" label="음반" />
+    → [[/음반 목록|음반]]
+
+    4) 이미지를 링크에 첨부하기
+    <Link toExternal="https://www.instagram.com/for.marie/">
+        <Image fileName="인스타그램 아이콘.svg" width=LayoutLength(20) />
+    </Link>
+
+    ---
+    속성
+    - toDocument: String?   위키 문서명. `/`로 시작하면 현재 문서 기준 하위 경로.
+    - toExternal: String?   http(s) URL.
+    - label: String?        표시 문자열. children과 동시 사용 금지.
+    - children: Text | Image  표시 라벨. (인라인 서식 Text는 추후 확장)
+
+    검증
+    - toDocument / toExternal 중 정확히 하나 필수.
+    - label과 children 동시 지정 → 에러.
+    - children이 있으면 Text | Image 외 금지.
+    - toExternal은 http:// 또는 https:// 로 시작.
+
+    빌드
+    - 대상 = toDocument ?? toExternal
+    - 표시 = children 렌더 결과 ?? label ?? (없으면 대상만으로 [[대상]])
+    - 출력 = 표시 있음 ? "[[\(대상)|\(표시)]]" : "[[\(대상)]]"
+*/
+
+
+<!-- 주석 (나무위키 각주) -->
+/*
+    위키: 컨텐츠 바로 뒤(공백 없음)에 `[* 주석본문]`
+    예: …학사)}}}[* 15학번]
+        …마도리.[* …[[https://youtu.be/…|#]]]
+
+    위치: 주석을 붙일 컨텐츠의 **형제 다음**. Text/Link 자식으로 넣지 않음.
+
+    참고사항: 직전 형제에 공백/delimiter 없이 붙인다. 
+    - 만약 <Comment> 안에 두 개 이상의 자식 요소가 있다고 가정하자.
+    - 여기에 바로 바깥 부모 요소로 <TableColumn> 이 있고, 여기에 delimiter 속성이 있다면
+    - Comment 안에 있는 두 개 이상의 자식 요소에는 TableColumn의 delimiter가 붙이는 구분자가 적용되지 않는다.
+
+    1) 짧은 문자열
+    <Text text="15학번 관련 본문" />
+    <Comment text="15학번" />
+    → …[* 15학번]
+
+    2) 리치 주석 (Text / Link / Image children 허용)
+    <Text text="사인은 마도리." />
+    <Comment>
+        <Text text="자세한 설명. " />
+        <Link toExternal="https://youtu.be/fizrjf-gdPk?t=436" label="#" />
+    </Comment>
+    → …[* 자세한 설명. [[https://youtu.be/fizrjf-gdPk?t=436|#]]]
+
+    <Comment>
+        <Text text="아이콘 " />
+        <Image fileName="인스타그램 아이콘.svg" width=LayoutLength(20) />
+    </Comment>
+
+    ---
+    속성
+    - text: String?       순수 문자열 주석. children과 동시 사용 금지.
+    - children:           Text | Link | Image 및 이들의 나열.
+                          (Link의 라벨 규칙과 별개 — 주석 **안**에서는 Image 허용)
+
+    검증
+    - text / children 중 하나 필수 (둘 다 없음 → 에러, 둘 다 있음 → 에러).
+    - children에 Table 등 블록 컴포넌트 금지.
+    - 주석 본문에 반각 `]` 가 깨질 수 있음 → 가능하면 피하거나 빌드 경고.
+
+    빌드
+    - 본문 = text ?? children 렌더 결과(이어 붙임)
+    - 출력 = "[* \(본문)]"  (앞 컨텐츠와 공백 없이 연결)
+*/
+
+<!-- 한 줄 내리기 (br) -->
+/*
+    <br> 쓰면 된다.
+*/
+
+<!-- 빈 공백 넣기 -->
+/*
+    <Space> 를 넣으면 한 칸 공백이 생긴다.
+    이는 <Text text=" " /> 과 동일하다.
+*/
+
+<!-- Box Model 공용 타입 -->
+/*
+    틀·카드 등 {{{#!wiki style="…}}} 중첩에 사용. 스타일은 바깥 Box → 안쪽 Box.
+
+    1) Spacing (margin / padding)
+    Spacing(12)                          // 사방 → 12px
+    Spacing(vertical: 5, horizontal: 10) // → 5px 10px
+    Spacing(top: 10, horizontal: .auto)  // → 10px auto
+    Spacing(top: -3, horizontal: 10, bottom: 18)  // → -3px 10px 18px
+    Spacing(top: 0, right: 10, bottom: -20, left: -10)  // 음수 허용 (셀 bleed)
+    - 변 값은 숫자(→ px) 또는 .auto / "auto"
+
+    2) Border
+    Border(width: 1, style: .solid, color: HexColor?)
+    Border(width: 0)  → border: none
+    - color 생략 시 currentColor (예: border-bottom: 1px solid)
+    - style: .solid | .none | .dashed | .dotted (기본 .solid)
+
+    3) CornerRadius
+    - 숫자 또는 LayoutLength → border-radius (px / %)
+
+    4) ColorStop (그라데이션 스톱)
+    ColorStop(HexColor("#AFEEEE"))
+    ColorStop(HexColor("#AFEEEE"), at: 65)              // → #afeeee 65%
+    ColorStop(HexColor("#1f719a"), at: 6, until: 12)    // → #1f719a 6% 12%
+    ColorStop(.transparent, at: 30)
+    ColorStop(RgbaColor(255, 255, 255, 0.875))
+    - at / until: 숫자면 % 로 직렬화
+
+    5) LinearGradient / RepeatingLinearGradient
+    LinearGradient(.toRight, HexColor("#FFB9B9"), HexColor("#FFFDBB"))
+    → linear-gradient(to right, #ffb9b9, #fffdbb)
+
+    LinearGradient(angle: 135, HexColor("#a"), HexColor("#b"), HexColor("#c"))
+    → linear-gradient(135deg, …)
+
+    LinearGradient(
+      direction: .toRight,
+      ColorStop(HexColor("#AFEEEE"), at: 65),
+      ColorStop(HexColor("#4682B4"), at: 80)
+    )
+
+    RepeatingLinearGradient(angle: 45, ColorStop(HexColor("#1f719a"), at: 6, until: 12), …)
+    → repeating-linear-gradient(45deg, …)
+
+    enum GradientDirection {
+        case toRight, toLeft, toTop, toBottom
+        case toTopRight, toTopLeft, toBottomRight, toBottomLeft
+    }
+
+    6) RadialGradient
+    RadialGradient(.circle, atX: 50, atY: 0, HexColor("#000"), ColorStop(.transparent, at: 30))
+    → radial-gradient(circle at 50% 0%, #000, transparent 30%)
+*/
+
+<!-- Box -->
+/*
+    위키: {{{#!wiki style="…합성…"}}} … }}}
+    한 겹의 wiki style 블록 = Box 하나. 바깥→안쪽으로 중첩.
+
+    <Box
+      width=LayoutLength? maxWidth=LayoutLength? minWidth=LayoutLength? height=LayoutLength?
+      margin=Spacing? padding=Spacing?
+      border=Border? borderTop=Border? borderRight=Border? borderBottom=Border? borderLeft=Border?
+      borderRadius=CornerRadius?
+      bgColor=HexColor|RgbaColor?
+      background=LinearGradient|RadialGradient|RepeatingLinearGradient|[Gradient…]?
+      color=HexColor|RgbaColor?
+      opacity=Float?   // 0...1 → opacity: N
+      display=BoxDisplay?
+      alignItems=FlexAlign? justifyContent=FlexJustify? flexDirection=FlexDirection?
+      textAlign=TextAlignment? wordBreak=WordBreak?
+      fontSize=String? fontFamily=String?
+      styleExtra=String?
+    > … </Box>
+
+    - bgColor 만: background: <solid>
+    - background 만: background: <gradient…>
+    - 둘 다: background-color: <solid>; background: <gradient…>
+    - background 배열이면 쉼표로 레이어 중첩 (앞이 위)
+
+    enum BoxDisplay { case block, inline, inlineBlock, flex }  // CSS: inline-block
+    enum FlexAlign { case center, flexStart, flexEnd, stretch, baseline }
+    enum FlexJustify { case center, flexStart, flexEnd, spaceBetween, spaceAround }
+    enum FlexDirection { case row, column }
+    enum WordBreak { case keepAll, breakAll, normal }
+
+    검증
+    - alignItems / justifyContent / flexDirection 은 display=.flex 일 때만.
+    - opacity 는 0...1.
+    - CSS 길이: LayoutLength point → Npx, percent → N%.
+
+    Divider
+    - 1차: 별도 컴포넌트 없음. Box의 borderBottom / borderRight 로 표현.
+    - 2차 설탕(추후): <Divider /> → 얇은 가로 border Box.
+*/
+
+<!-- Folding -->
+/*
+    위키: {{{#!folding [ title ] … }}}
+    <Folding title="정규 음반"> … </Folding>
+    - Box Model과 별개. 접기 블록.
+    - 초기 펼침/접힘은 문서 문법으로 지정할 수 없다 (항상 접힘 시작).
+      독자 설정의 「접기 문법을 기본으로 펼치기」만 가능 → nwiki에도 initial 속성을 두지 않는다.
+*/
+
+<!-- Heading (문단) -->
+/*
+    위키 문단 구분자. 한 줄 전체를 차지한다.
+    == 제목 ==  …  ====== 제목 ======  (level 1...6, 등호 개수)
+
+    <Heading level=2 title="개요" />
+    → == 개요 ==
+
+    <Heading level=3 title="여담" collapsed=true />
+    → ===# 여담 #===
+    - collapsed=true: 문단 기본 숨김 (`=# #=` 형태). Folding(#!folding)과 별개.
+
+    <Heading level=2 title="개요">
+      <Text text="본문…" />
+    </Heading>
+    → == 개요 ==
+      본문…
+
+    검증: level 은 1...6 정수. title 문자열 필수.
+*/
+
+<!-- Badge (설탕) -->
+/*
+    작은 칩/뱃지. 내부적으로 inline-block Box + padding + radius + bg.
+    <Badge bgColor=HexColor borderRadius=3?>
+      <Text text="정규 1집" weight=.bold size=.step(-3) color=HexColor("#fff") />
+    </Badge>
+*/
+
+<!-- 유틸 함수 및 타입 목록 -->
+/*
+    빌드 시점에 숫자를 계산해 고정하지 않고, 나무위키 매크로 문자열로 치환한다.
+    (문서가 위키에 붙은 뒤에도 나이·D데이가 갱신되도록)
+
+    1) age(_ date: Date) -> 매크로 조각
+    - 출력 예: [age(1994-05-06)]
+    <Text text="(${age(Date(year: 1994, month: 5, day: 6))}세)" />
+    → ([age(1994-05-06)]세)
+
+    2) dday(_ date: Date) -> 매크로 조각
+    - 출력 예: [dday(2018-03-16)]
+    <Text text="D${dday(Date(year: 2018, month: 3, day: 16))}일" />
+    → D[dday(2018-03-16)]일
+
+    3) Date
+    struct Date {
+        let year: Int
+        let month: Int
+        let day: Int
+    }
+
+    4) category(_ name: String) -> Void
+    - 분류 연결할 때 사용된다. 한 줄에 하나씩 나열.
+
+    5) include(_ documentTitle: String | CommonFrame) -> Void
+    - 위키 문서 전체 제목으로 임베드. 문자열 예: include("틀:접근 제한")
+    - CommonFrame enum이면 자동으로 틀: 접두.
+
+    6) includeFrame(_ frame: String | CommonFrame) -> Void
+    - 문자열이면 앞에 틀: 를 붙인다 (이미 틀: 이면 유지).
+    - CommonFrame bare / associated-call 지원.
+
+    7) CommonFrame (자주 쓰는 공통 틀)
+    enum CommonFrame {
+      case spoiler, spoilerSection, adult, incident, unpublished, stub
+      case npov, mpov, accessRestricted
+      case parentDocument(String?)            // → 문서명1
+      case childDocuments(String...)          // → 문서명1…
+      case relatedDocuments(String...)
+      case detail(String)                     // → 문서명
+      case discussion(String)                 // → 토론사유
+      case spoilerPreview(String, String)     // → 작품명, 화수
+      case disambiguation(String...)
+      case consensus(String...)
+    }
+    - adult = 틀:선정성 (구어 19금). 틀:19금 아님.
+    - 정본: includeFrame(.discussion("표제어"))
+    - 허용: includeFrame(.discussion, "표제어")  (동등)
+    - 연관값은 가변 위치 인자. [] 로 감싸지 않음.
+
+    includeFrame(.adult)
+    includeFrame(.parentDocument("김마리(가수)"))
+    includeFrame(.relatedDocuments("음반 목록", "공연 목록"))
+    includeFrame(.spoiler)
+    includeFrame("김마리(가수)")
+
+    →
+    [include(틀:선정성)]
+    [include(틀:상위 문서, 문서명1=김마리(가수))]
+    [include(틀:관련 문서, 문서명1=음반 목록, 문서명2=공연 목록)]
+    [include(틀:스포일러)]
+    [include(틀:김마리(가수))]
+
+    작성 스타일
+    - category / include / includeFrame 은 한 줄에 호출 하나.
+    - 권장 순서: 분류 → 접근 제한 → 문서 유도 → 상위/하위/관련 → 토론 → 스포일러·선정성 등 → 둘러보기 틀 → 본문.
+*/
+
+<!-- 관련 프로토콜 -->
+/*
+    protocol Alignment {
+        func applyAlign(to text: String) -> Text // 예시
+    }
+*/
+
+<!-- 다른 문서에서 템플릿 가져오기 -->
+/*
+    아래처럼 먼저 import 구문을 쓴 다음, 해당 템플릿을 가져다 쓴다.
+    실제 조립 예: ../examples/introduce.nwiki
+
+    import(ProfileTable)
+
+    <template>
+        <ProfileTable name="김마리" />
+    </template>
+*/
+
+<!-- 차후 구현 내용 -->
+/*
+  - Divider 설탕 컴포넌트
+  - HStack (= display=.flex Box) 매크로
+  - 뷰에 파라미터 전달하기: Vue.js처럼 바깥쪽
+*/
