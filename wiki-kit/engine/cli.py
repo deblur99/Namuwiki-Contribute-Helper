@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .loader import ComponentRegistry, load_json
+from .nwiki_cli import register_nwiki_commands
 from .renderer import RenderError, render
 from .validator import validate_page_props, validate_unit
 
@@ -67,6 +68,17 @@ def cmd_validate(_: argparse.Namespace) -> int:
 
 
 def cmd_build(args: argparse.Namespace) -> int:
+    # nwiki path: python3 scripts/build.py build examples/introduce.nwiki
+    if args.page and str(args.page).endswith(".nwiki"):
+        from .nwiki_cli import cmd_nwiki_build
+
+        ns = argparse.Namespace(
+            path=args.page,
+            output=None,
+            check_golden=getattr(args, "check_golden", False),
+        )
+        return cmd_nwiki_build(ns)
+
     reg = build_registry()
     ds = load_json(ROOT / "data" / "designSystem.json")
     out_dir = ROOT / "outputs"
@@ -81,7 +93,7 @@ def cmd_build(args: argparse.Namespace) -> int:
             return 1
 
     if not pages:
-        print("No pages in pages/*.json", file=sys.stderr)
+        print("No pages in pages/*.json (or pass a .nwiki path)", file=sys.stderr)
         return 1
 
     # 빌드 전 검증
@@ -123,13 +135,24 @@ def main(argv: list[str] | None = None) -> None:
     p_val = sub.add_parser("validate", help="Validate components, templates, pages")
     p_val.set_defaults(func=cmd_validate)
 
-    p_build = sub.add_parser("build", help="Build pages into outputs/")
-    p_build.add_argument("page", nargs="?", help="Optional page stem to build")
+    p_build = sub.add_parser("build", help="Build pages or .nwiki into outputs/")
+    p_build.add_argument(
+        "page",
+        nargs="?",
+        help="Page stem, or .nwiki path (e.g. examples/introduce.nwiki)",
+    )
     p_build.add_argument("--force", action="store_true", help="Build even if validate fails")
+    p_build.add_argument(
+        "--check-golden",
+        action="store_true",
+        help="For .nwiki builds, compare fixtures/<stem>.golden.md",
+    )
     p_build.set_defaults(func=cmd_build)
 
     p_list = sub.add_parser("list", help="List registered units")
     p_list.set_defaults(func=cmd_list)
+
+    register_nwiki_commands(sub)
 
     args = parser.parse_args(argv)
     raise SystemExit(args.func(args))
