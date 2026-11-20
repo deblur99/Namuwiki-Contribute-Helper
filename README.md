@@ -1,69 +1,69 @@
 # Namuwiki Contribute Helper
 
-나무위키 문서를 **템플릿 + 디자인 토큰**으로 관리하고, 빌드 결과물을 위키 편집기에 붙여넣기 위한 작은 헬퍼입니다.
+나무위키 문서를 **템플릿·컴포넌트**로 관리하고, 빌드 결과(raw)를 위키 편집기에 붙여넣기 위한 헬퍼입니다.
 
-아티스트(또는 주제)마다 하위 프로젝트 폴더를 두고, 공통 빌드 스크립트는 저장소 루트에서 공유합니다.
+두 갈래가 병행됩니다.
+
+| 경로 | 역할 |
+|------|------|
+| [`wiki-kit/`](wiki-kit/README.md) | **권장** — `.nwiki` 조립 → 검증 → `outputs/*.md` |
+| `김마리/` + 루트 `scripts/build.py` | 레거시 — `${designSystem.*}` 토큰 치환 |
+
+상세 규칙은 [RULES.md](RULES.md)(레거시 토큰)와 [wiki-kit/docs/SPEC.nwiki](wiki-kit/docs/SPEC.nwiki)(nwiki 문법)를 따른다.
+
+## 빠른 시작 (wiki-kit / nwiki)
+
+```bash
+cd wiki-kit
+python3 scripts/build.py build examples/introduce.nwiki
+# → outputs/introduce.md
+
+python3 -m unittest tests/test_nwiki_introduce.py
+```
+
+에디터 지원:
+
+```bash
+cd wiki-kit/vscode-nwiki && npm install && npm run compile
+```
+
+저장소에서 **Run and Debug → Run nwiki Extension** (`Cmd+F5` 권장).  
+기능 목록은 [wiki-kit/vscode-nwiki/README.md](wiki-kit/vscode-nwiki/README.md).
 
 ## 구조
 
 ```
 Namuwiki-Contribute-Helper/
-├── scripts/build.py      # 공통 빌드 (레거시: 토큰 치환)
-├── wiki-kit/             # 초안: 컴포넌트·템플릿·검증·빌드
-├── README.md
+├── wiki-kit/                 # nwiki 엔진 · 예제 · VS Code 확장
+│   ├── docs/SPEC.nwiki
+│   ├── examples/             # introduce, ProfileTable, Box, CommonFrame …
+│   ├── engine/nwiki/         # 파서 · 렌더 · CommonFrame · import
+│   ├── vscode-nwiki/         # 자동완성 · 진단 · 프리뷰 · 태그 닫기
+│   └── tests/
+├── scripts/build.py          # 레거시 토큰 빌드
+├── 김마리/                   # 레거시 프로젝트 예시
 ├── RULES.md
-└── 김마리/                 # 프로젝트 예시
-    ├── data/             # designSystem.json, urls.json
-    ├── templates/        # 편집용 원본 (${designSystem.*} 토큰)
-    └── outputs/          # 위키에 붙여넣을 결과 (gitignore)
+└── README.md
 ```
 
-컴포넌트 단위 조립은 [wiki-kit/README.md](wiki-kit/README.md)를 본다.
-
-새 프로젝트는 `김마리/`와 같이 `{이름}/data|templates|outputs`만 추가하면 됩니다.
-
-## 빌드
+## 레거시 빌드 (김마리)
 
 ```bash
-# 특정 프로젝트
 python3 scripts/build.py 김마리
-
-# templates + data/designSystem.json 이 있는 프로젝트 전부
-python3 scripts/build.py
 ```
 
-1. `{프로젝트}/templates/` 또는 `data/designSystem.json`을 수정한다.
-2. 위 명령으로 빌드한다.
-3. `{프로젝트}/outputs/` 파일을 복사 → 나무위키 편집기 붙여넣기 → 미리보기 후 저장.
+1. `김마리/templates/` 또는 `data/designSystem.json` 수정  
+2. 빌드 → `김마리/outputs/` 복사 → 위키 붙여넣기  
 
-상세 규칙은 [RULES.md](RULES.md)를 따른다.
-
-## 예시 프로젝트: 김마리
-
-| 위키 문서 | templates / outputs |
-|-----------|---------------------|
+| 위키 문서 | templates |
+|-----------|-----------|
 | [김마리(가수)](https://namu.wiki/w/%EA%B9%80%EB%A7%88%EB%A6%AC(%EA%B0%80%EC%88%98)) | `소개.md` |
 | [음반 목록](https://namu.wiki/w/%EA%B9%80%EB%A7%88%EB%A6%AC(%EA%B0%80%EC%88%98)/%EC%9D%8C%EB%B0%98%20%EB%AA%A9%EB%A1%9D) | `음반목록.md` |
 | [공연 목록](https://namu.wiki/w/%EA%B9%80%EB%A7%88%EB%A6%AC(%EA%B0%80%EC%88%98)/%EA%B3%B5%EC%97%B0%20%EB%AA%A9%EB%A1%9D) | `공연목록.md` |
 | [응원법](https://namu.wiki/w/%EA%B9%80%EB%A7%88%EB%A6%AC(%EA%B0%80%EC%88%98)/%EC%9D%91%EC%9B%90%EB%B2%95) | `응원법.md` |
 | [틀:김마리(가수)](https://namu.wiki/w/%ED%8B%80:%EA%B9%80%EB%A7%88%EB%A6%AC(%EA%B0%80%EC%88%98)) | `틀.md` |
 
-위키 URL은 `김마리/data/urls.json`에도 있습니다.
-
-### 디자인 토큰 (`김마리/data/designSystem.json`)
-
-| 키 | 용도 |
-|----|------|
-| `accentColor` | 표 테두리·헤더·강조 배경 |
-| `white` / `whiteShort` | 흰 배경·짧은 `#fff` |
-| `black` | 본문/가사 강조 글자색 |
-| `tableBgAlbum` | 음반 표 본문 (`#EEE,#333`) |
-| `tableBgIntro` | 소개 인포박스 배경 |
-| `lyricHighlightBg` | 응원법 따라 부르기 하이라이트 |
-| `profileImage` | 소개 프로필 이미지 파일명 |
-
-templates에서는 `${designSystem.accentColor}`처럼 참조합니다.
-
 ## 요구 사항
 
-- Python 3.9+ (표준 라이브러리만 사용)
+- Python 3.9+ (표준 라이브러리)
+- 확장 개발 시 Node.js 20+ (`wiki-kit/vscode-nwiki`)
