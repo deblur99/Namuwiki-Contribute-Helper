@@ -1,0 +1,10 @@
+{
+  "cursor.cpp.disabledLanguages": [
+    "nwiki"
+  ],
+  "[nwiki]": {
+    "editor.defaultFormatter": "namuwiki-contribute-helper.nwiki",
+    "editor.inlineSuggest.enabled": false
+  },
+  "emmet.excludeLanguages": ["nwiki"]
+}
