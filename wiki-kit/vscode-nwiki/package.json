@@ -1,0 +1,167 @@
+{
+  "name": "nwiki",
+  "displayName": "nwiki",
+  "description": "Language support for Namuwiki Contribute Helper .nwiki files",
+  "version": "0.1.0",
+  "publisher": "namuwiki-contribute-helper",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Formatters",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:nwiki",
+    "onCommand:nwiki.build",
+    "onCommand:nwiki.openOutput",
+    "onCommand:nwiki.previewOutput",
+    "onCommand:nwiki.formatDocument",
+    "onCommand:nwiki.showDiagnosticHelp"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "nwiki",
+        "aliases": [
+          "nwiki",
+          "Namuwiki Kit"
+        ],
+        "extensions": [
+          ".nwiki"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "nwiki",
+        "scopeName": "source.nwiki",
+        "path": "./syntaxes/nwiki.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "nwiki",
+        "path": "./snippets/nwiki.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "nwiki.build",
+        "title": "nwiki: Build File"
+      },
+      {
+        "command": "nwiki.openOutput",
+        "title": "nwiki: Open Build Output"
+      },
+      {
+        "command": "nwiki.previewOutput",
+        "title": "nwiki: Preview Build Output"
+      },
+      {
+        "command": "nwiki.formatDocument",
+        "title": "nwiki: Format Document"
+      },
+      {
+        "command": "nwiki.showDiagnosticHelp",
+        "title": "nwiki: Show Diagnostic Help"
+      },
+      {
+        "command": "nwiki.slashPadArrow",
+        "title": "nwiki: Slash-pad Arrow",
+        "enablement": "nwiki.slashPad"
+      },
+      {
+        "command": "nwiki.expandTagPair",
+        "title": "nwiki: Expand Tag Pair",
+        "enablement": "nwiki.pairGap"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "nwiki.formatDocument",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l",
+        "when": "editorLangId == nwiki"
+      },
+      {
+        "command": "nwiki.slashPadArrow",
+        "key": "up",
+        "when": "editorTextFocus && editorLangId == nwiki && nwiki.slashPad",
+        "args": "up"
+      },
+      {
+        "command": "nwiki.slashPadArrow",
+        "key": "down",
+        "when": "editorTextFocus && editorLangId == nwiki && nwiki.slashPad",
+        "args": "down"
+      },
+      {
+        "command": "nwiki.expandTagPair",
+        "key": "enter",
+        "when": "editorTextFocus && editorLangId == nwiki && nwiki.pairGap && !editorHasMultipleSelections"
+      }
+    ],
+    "configuration": {
+      "title": "nwiki",
+      "properties": {
+        "nwiki.buildOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Build .nwiki on save"
+        },
+        "nwiki.openOutputAfterBuild": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open outputs/<stem>.md after a successful build"
+        },
+        "nwiki.previewAfterBuild": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show approximate namuwiki HTML preview after a successful build"
+        },
+        "nwiki.formatOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format .nwiki on save before build"
+        },
+        "nwiki.formatOnNewline": {
+          "type": "boolean",
+          "default": false,
+          "description": "Format document after pressing Enter"
+        },
+        "nwiki.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python executable used to run wiki-kit build/parse"
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[nwiki]": {
+        "editor.defaultFormatter": "namuwiki-contribute-helper.nwiki",
+        "editor.formatOnSave": true,
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": true
+        }
+      },
+      "emmet.excludeLanguages": ["nwiki"]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,160 @@
+{
+  "Table skeleton": {
+    "prefix": "tbl",
+    "body": [
+      "<Table width=LayoutLength(${1:500}) align=.${2|right,center,left|} borderColor=HexColor(\"${3:#87CEEB}\") bgColor=HexColor(light=\"${4:#FFFFFF}\", dark=\"${5:#1C1D1F}\")>",
+      "\t<TableRow>",
+      "\t\t<TableColumn>",
+      "\t\t\t$0",
+      "\t\t</TableColumn>",
+      "\t</TableRow>",
+      "</Table>"
+    ],
+    "description": "Table with one row/column"
+  },
+  "TableRow + Column": {
+    "prefix": "tr",
+    "body": [
+      "<TableRow>",
+      "\t<TableColumn$1>",
+      "\t\t$0",
+      "\t</TableColumn>",
+      "</TableRow>"
+    ],
+    "description": "TableRow with TableColumn"
+  },
+  "TableColumn": {
+    "prefix": "tc",
+    "body": [
+      "<TableColumn$1>",
+      "\t$0",
+      "</TableColumn>"
+    ],
+    "description": "TableColumn"
+  },
+  "Text": {
+    "prefix": "tx",
+    "body": "<Text text=\"${1:text}\"$2 />",
+    "description": "Text element"
+  },
+  "Link": {
+    "prefix": "lk",
+    "body": "<Link toDocument=\"${1:문서}\" label=\"${2:표시}\" />",
+    "description": "Link to document"
+  },
+  "Image": {
+    "prefix": "img",
+    "body": "<Image fileName=\"${1:file.png}\" width=LayoutLength(${2:100}$3) />",
+    "description": "Image"
+  },
+  "Comment": {
+    "prefix": "cmt",
+    "body": "<Comment text=\"${1:주석}\" />",
+    "description": "Footnote comment"
+  },
+  "category": {
+    "prefix": "cat",
+    "body": "category(\"${1:분류}\")",
+    "description": "category() call"
+  },
+  "include": {
+    "prefix": "inc",
+    "body": "include(\"${1:틀:이름}\")",
+    "description": "include() call — full wiki document title"
+  },
+  "includeFrame": {
+    "prefix": "incf",
+    "body": "includeFrame(\"${1:이름}\")",
+    "description": "includeFrame() sugar — prefixes 틀:"
+  },
+  "includeFrame CommonFrame": {
+    "prefix": "incfc",
+    "body": "includeFrame(.${1|adult,spoiler,parentDocument(\"문서\"),relatedDocuments(\"A\", \"B\"),discussion(\"사유\"),accessRestricted|})",
+    "description": "includeFrame(.CommonFrame …)"
+  },
+  "includeFrame adult": {
+    "prefix": "incfa",
+    "body": "includeFrame(.adult)",
+    "description": "틀:선정성 (19금)"
+  },
+  "includeFrame discussion": {
+    "prefix": "incfd",
+    "body": "includeFrame(.discussion(\"${1:사유}\"))",
+    "description": "틀:토론 중"
+  },
+  "includeFrame related": {
+    "prefix": "incfr",
+    "body": "includeFrame(.relatedDocuments(\"${1}\", \"${2}\"))",
+    "description": "틀:관련 문서"
+  },
+  "HexColor": {
+    "prefix": "hex",
+    "body": "HexColor(\"${1:#FFFFFF}\")",
+    "description": "HexColor init"
+  },
+  "TextSize.step": {
+    "prefix": "tsz",
+    "body": "TextSize.step(${1:1})",
+    "description": "TextSize.step(n)"
+  },
+  "import": {
+    "prefix": "imp",
+    "body": "import(${1:ProfileTable})",
+    "description": "import() call"
+  },
+  "Box": {
+    "prefix": "box",
+    "body": [
+      "<Box$1>",
+      "\t$0",
+      "</Box>"
+    ],
+    "description": "Box ({{{#!wiki style}}})"
+  },
+  "Box flex row": {
+    "prefix": "boxflex",
+    "body": [
+      "<Box display=.flex padding=Spacing(${1:12}) alignItems=.center justifyContent=.center>",
+      "\t$0",
+      "</Box>"
+    ],
+    "description": "Flex Box row"
+  },
+  "Folding": {
+    "prefix": "fold",
+    "body": [
+      "<Folding title=\"${1:제목}\">",
+      "\t$0",
+      "</Folding>"
+    ],
+    "description": "Folding block"
+  },
+  "Heading": {
+    "prefix": "hd",
+    "body": "<Heading level=${1:2} title=\"${2:제목}\" />",
+    "description": "Wiki paragraph heading (== … ==)"
+  },
+  "Heading collapsed": {
+    "prefix": "hdc",
+    "body": "<Heading level=${1:2} title=\"${2:제목}\" collapsed=true />",
+    "description": "Collapsed paragraph heading (==# … #==)"
+  },
+  "Badge": {
+    "prefix": "badge",
+    "body": [
+      "<Badge bgColor=HexColor(\"${1:#5C775E}\")>",
+      "\t<Text text=\"${2:라벨}\" weight=.bold />",
+      "</Badge>"
+    ],
+    "description": "Badge chip sugar"
+  },
+  "LinearGradient Box": {
+    "prefix": "boxgrad",
+    "body": [
+      "<Box background=LinearGradient(.toRight, HexColor(\"${1:#FFB9B9}\"), HexColor(\"${2:#FFFDBB}\")) opacity=${3:1}>",
+      "\t$0",
+      "</Box>"
+    ],
+    "description": "Box with LinearGradient background"
+  }
+}

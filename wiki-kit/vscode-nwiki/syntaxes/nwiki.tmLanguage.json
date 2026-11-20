@@ -1,0 +1,137 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "nwiki",
+  "scopeName": "source.nwiki",
+  "patterns": [
+    { "include": "#doc-comment" },
+    { "include": "#block-comment" },
+    { "include": "#html-comment" },
+    { "include": "#script-block" },
+    { "include": "#template-block" },
+    { "include": "#calls" },
+    { "include": "#tags" },
+    { "include": "#strings" }
+  ],
+  "repository": {
+    "doc-comment": {
+      "name": "comment.line.documentation.nwiki",
+      "match": "^[ \\t]*///.*$"
+    },
+    "block-comment": {
+      "name": "comment.block.nwiki",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    "html-comment": {
+      "name": "comment.block.html.nwiki",
+      "begin": "<!--",
+      "end": "-->"
+    },
+    "script-block": {
+      "name": "meta.script.nwiki",
+      "begin": "(<)(script)(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.nwiki" },
+        "2": { "name": "entity.name.tag.nwiki" },
+        "3": { "name": "punctuation.definition.tag.end.nwiki" }
+      },
+      "end": "(</)(script)(>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.nwiki" },
+        "2": { "name": "entity.name.tag.nwiki" },
+        "3": { "name": "punctuation.definition.tag.end.nwiki" }
+      },
+      "patterns": [{ "include": "#strings" }]
+    },
+    "template-block": {
+      "name": "meta.template.nwiki",
+      "begin": "(<)(template)(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.nwiki" },
+        "2": { "name": "entity.name.tag.nwiki" },
+        "3": { "name": "punctuation.definition.tag.end.nwiki" }
+      },
+      "end": "(</)(template)(>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.nwiki" },
+        "2": { "name": "entity.name.tag.nwiki" },
+        "3": { "name": "punctuation.definition.tag.end.nwiki" }
+      },
+      "patterns": [
+        { "include": "#tags" },
+        { "include": "#strings" },
+        { "include": "#interpolation" }
+      ]
+    },
+    "calls": {
+      "name": "meta.call.nwiki",
+      "match": "\\b(category|include|includeFrame|import)\\s*\\(",
+      "captures": {
+        "1": { "name": "support.function.nwiki" }
+      }
+    },
+    "tags": {
+      "patterns": [
+        {
+          "name": "meta.tag.nwiki",
+          "begin": "(</?)([A-Za-z_][\\w-]*)",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.tag.begin.nwiki" },
+            "2": { "name": "entity.name.tag.nwiki" }
+          },
+          "end": "(/?>)",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.tag.end.nwiki" }
+          },
+          "patterns": [
+            {
+              "name": "entity.other.attribute-name.nwiki",
+              "match": "\\b([A-Za-z_][\\w-]*)\\s*="
+            },
+            { "include": "#strings" },
+            { "include": "#interpolation" },
+            {
+              "name": "constant.language.nwiki",
+              "match": "\\b(true|false)\\b"
+            },
+            {
+              "name": "variable.other.enum.nwiki",
+              "match": "\\.[A-Za-z_][\\w-]*"
+            }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.nwiki",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [{ "include": "#interpolation" }]
+        },
+        {
+          "name": "string.quoted.single.nwiki",
+          "begin": "'",
+          "end": "'",
+          "patterns": [{ "include": "#interpolation" }]
+        }
+      ]
+    },
+    "interpolation": {
+      "name": "meta.interpolation.nwiki",
+      "begin": "\\$\\{",
+      "end": "\\}",
+      "patterns": [
+        {
+          "name": "variable.other.nwiki",
+          "match": "\\bprops\\.[A-Za-z_]\\w*"
+        },
+        {
+          "name": "support.function.nwiki",
+          "match": "\\b(age|dday|Date|LayoutLength|HexColor|RgbaColor|Spacing|Border|ColorStop|LinearGradient|RepeatingLinearGradient|RadialGradient)\\b"
+        }
+      ]
+    }
+  }
+}
