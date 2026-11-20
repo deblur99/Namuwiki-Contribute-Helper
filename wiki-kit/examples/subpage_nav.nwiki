@@ -1,0 +1,15 @@
+/*
+하위 문서 상단 내비 예제 (한 줄씩 includeFrame 나열)
+스펙: ../docs/SPEC.nwiki
+위키: [include(틀:상위 문서)] + 둘러보기 틀
+*/
+
+<!-- 상위 문서 배너 → 스크린샷의 「상위 문서: …」 -->
+includeFrame("상위 문서")
+
+<!-- 가수 둘러보기 틀 -->
+includeFrame("김마리(가수)")
+
+<template>
+  <Heading level=2 title="음반 목록" />
+</template>

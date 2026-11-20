@@ -1,0 +1,45 @@
+/*
+중첩 Box 헤더 스케치 (틀 바깥 껍데기 + flex 행)
+스펙: ../docs/SPEC.nwiki
+*/
+
+<template>
+  <Box
+    maxWidth=LayoutLength(700)
+    margin=Spacing(top: 10, horizontal: .auto)
+    border=Border(width: 0)
+    borderRadius=8
+    bgColor=HexColor("#000")
+    color=HexColor("#fff")
+    textAlign=.center
+    wordBreak=.keepAll>
+    <Box
+      display=.flex
+      width=LayoutLength(90, .percent)
+      margin=Spacing(.auto)
+      padding=Spacing(12)
+      borderBottom=Border(width: 1, style: .solid)
+      alignItems=.center
+      justifyContent=.center>
+      <Box
+        padding=Spacing(vertical: 5, horizontal: 10)
+        borderRight=Border(width: 1, style: .solid)>
+        <Link toDocument="김마리(가수)" label="logo" />
+      </Box>
+      <Box padding=Spacing(horizontal: 10) textAlign=.left>
+        <Link toDocument="김마리(가수)" label="김마리" />
+      </Box>
+    </Box>
+    <br />
+    <Box
+      display=.inlineBlock
+      margin=Spacing(top: -3, horizontal: 10, bottom: 18)
+      minWidth=LayoutLength(30, .percent)>
+      <Folding title="정규 음반">
+        <Badge bgColor=HexColor("#5C775E")>
+          <Text text="정규 1집" weight=.bold />
+        </Badge>
+      </Folding>
+    </Box>
+  </Box>
+</template>
