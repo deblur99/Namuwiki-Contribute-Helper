@@ -547,7 +547,9 @@ include("틀:김마리(가수)")
 
 import(ProfileTable)
 
-<ProfileTable name="" title="" ... />
+<template>
+    <ProfileTable name="" title="" ... />
+</template>
 
 /* 이후 추가 내용... */
 
