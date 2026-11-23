@@ -1,0 +1,26 @@
+/*
+소개 문서 조립 예제 (엔진 입력 후보)
+스펙: ../docs/SPEC.nwiki
+템플릿: ProfileTable.nwiki
+*/
+
+<!-- 분류 -->
+<!-- 컴파일 시 실행 인자로 category 키워드가 나무위키 분류에 있는지 검증하는 기능을 고려할 수 있음. -->
+category("김마리(가수)")
+category("1994년 출생")
+category("2018년 데뷔")
+category("한국 여가수")
+category("대한민국의 싱어송라이터")
+category("경희대학교 출신")
+
+<!-- include 틀 (includeFrame sugar; include("틀:…") 와 동일) -->
+includeFrame("김마리(가수)")
+
+<!-- 프로필 표 템플릿 -->
+import(ProfileTable)
+
+<template>
+    <ProfileTable name="김마리" />
+</template>
+
+/* 이후 개요·여담 등 추가 내용... */

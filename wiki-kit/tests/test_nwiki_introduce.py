@@ -198,6 +198,113 @@ class IntroduceGoldenTest(unittest.TestCase):
         )
         self.assertIn("background: rgba(255, 255, 255, 0.875)", out)
 
+    def test_json_import_golden(self) -> None:
+        got = build_nwiki(ROOT / "examples" / "with_data.nwiki").rstrip("\n")
+        exp = (ROOT / "fixtures" / "with_data.golden.md").read_text(
+            encoding="utf-8"
+        ).rstrip("\n")
+        self.assertEqual(got, exp)
+
+    def test_json_import_missing_file(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.resolve import resolve_document
+
+        doc = parse_document(
+            'import("./missing.json")\n<template><Text text="x" /></template>\n',
+            path=str(ROOT / "examples" / "with_data.nwiki"),
+        )
+        with self.assertRaises(NwikiError):
+            resolve_document(doc)
+
+    def test_json_import_unknown_key(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.resolve import resolve_document
+
+        doc = parse_document(
+            'import("./data/designSystem.json")\n'
+            '<template><Text text="${designSystem.nope}" /></template>\n',
+            path=str(ROOT / "examples" / "with_data.nwiki"),
+        )
+        with self.assertRaises(NwikiError) as ctx:
+            resolve_document(doc)
+        self.assertIn("unknown data key", str(ctx.exception))
+
+    def test_json_import_inside_script(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.resolve import resolve_document
+
+        doc = parse_document(
+            '<script>\n'
+            '  import("./data/designSystem.json")\n'
+            "</script>\n"
+            "<template>\n"
+            '  <Text text="${designSystem.accentColor}" />\n'
+            "</template>\n",
+            path=str(ROOT / "examples" / "with_data.nwiki"),
+        )
+        resolved = resolve_document(doc)
+        self.assertEqual(
+            resolved.data_namespaces["designSystem"]["accentColor"], "#87CEEB"
+        )
+        from engine.nwiki.render import render_document
+
+        out = render_document(resolved)
+        self.assertIn("#87CEEB", out)
+
+    def test_kimmarie_frame_json_in_script(self) -> None:
+        frame = (
+            ROOT.parent / "김마리" / "components" / "Frame.nwiki"
+        ).resolve()
+        if not frame.is_file():
+            self.skipTest("김마리/components/Frame.nwiki not present")
+        out = build_nwiki(frame)
+        self.assertIn("#87ceeb", out.lower())
+        self.assertIn("<:>", out)
+        self.assertIn("inline-flex", out)
+        self.assertIn("align-items: center", out)
+        self.assertIn("margin: -5px -10px", out)
+
+    def test_row_column_stack_sugar(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+
+        doc = parse_document(
+            "<template>\n"
+            "  <Row inline=true crossAxisAlignment=.center spacing=4>\n"
+            '    <Text text="A" />\n'
+            '    <Text text="B" />\n'
+            "  </Row>\n"
+            "  <Column crossAxisAlignment=.start mainAxisAlignment=.center>\n"
+            '    <Text text="C" />\n'
+            "  </Column>\n"
+            "</template>\n"
+        )
+        out = render_document(doc)
+        self.assertIn("display: inline-flex", out)
+        self.assertIn("flex-direction: row", out)
+        self.assertIn("gap: 4px", out)
+        self.assertIn("flex-direction: column", out)
+        self.assertIn("align-items: flex-start", out)
+        self.assertIn("justify-content: center", out)
+
+    def test_table_column_alignment_prefix(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+
+        doc = parse_document(
+            "<template>\n"
+            "  <Table>\n"
+            "    <TableRow>\n"
+            "      <TableColumn alignment=.center>\n"
+            '        <Text text="x" />\n'
+            "      </TableColumn>\n"
+            "    </TableRow>\n"
+            "  </Table>\n"
+            "</template>\n"
+        )
+        out = render_document(doc)
+        self.assertIn("||<:>", out)
+
 
 if __name__ == "__main__":
     unittest.main()

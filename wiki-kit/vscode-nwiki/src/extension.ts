@@ -12,6 +12,7 @@ import {
   formatDocumentEditor,
   NwikiFormattingProvider,
 } from "./format";
+import { formatTagMultilineAtCursor } from "./formatTagMultiline";
 import { NwikiHoverProvider } from "./hover";
 import { disposePreview, showBuildPreview } from "./preview";
 import { NwikiQuickFixProvider } from "./quickFix";
@@ -141,6 +142,14 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.window.showInformationMessage(
         changed ? "nwiki: formatted" : "nwiki: already formatted"
       );
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("nwiki.formatTagMultiline", async () => {
+      const editor = requireNwikiEditor();
+      if (!editor) return;
+      await formatTagMultilineAtCursor(editor);
     })
   );
 

@@ -9,6 +9,7 @@ import {
 } from "./catalog";
 import { collectImportedTags } from "./diagnostics";
 import { resolveDocsForSymbol } from "./docs";
+import { jsonKeyCompletions, loadJsonNamespaces } from "./jsonData";
 import {
   ATTR_ENUMS,
   COMMON_FRAME_MEMBERS,
@@ -26,6 +27,15 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
     const line = document.lineAt(position).text;
     const prefix = line.slice(0, position.character);
     const items: vscode.CompletionItem[] = [];
+    const jsonNs = loadJsonNamespaces(document);
+
+    // JSON data keys: ${designSystem. / designSystem.
+    const jsonDot =
+      /(?:\$\{)?([A-Za-z_][\w]*)\.\w*$/.exec(prefix) ||
+      /(?:\$\{)?([A-Za-z_][\w]*)\.$/.exec(prefix);
+    if (jsonDot && jsonNs.has(jsonDot[1])) {
+      return jsonKeyCompletions(jsonNs, jsonDot[1]);
+    }
 
     // 1) includeFrame( / include( + `.` → CommonFrame
     if (/\b(?:includeFrame|include)\s*\(\s*\.?[\w]*$/.test(prefix)) {
@@ -172,7 +182,10 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
         );
         if (c === "import") {
           item.insertText = new vscode.SnippetString(
-            "import(${1:ProfileTable})"
+            "import(${1|ProfileTable,\"../data/designSystem.json\"|})"
+          );
+          item.documentation = new vscode.MarkdownString(
+            "컴포넌트 `import(Name)` 또는 JSON `import(\"….json\")` → `${stem.key}`"
           );
         } else if (c === "includeFrame") {
           item.insertText = new vscode.SnippetString(

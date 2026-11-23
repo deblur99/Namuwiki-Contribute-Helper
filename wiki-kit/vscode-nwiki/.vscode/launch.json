@@ -1,28 +1,4 @@
 {
   "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Run nwiki Extension",
-      "type": "extensionHost",
-      "request": "launch",
-      "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-      "outFiles": ["${workspaceFolder}/out/**/*.js"],
-      "preLaunchTask": "npm: compile",
-      "stopOnEntry": false,
-      "noDebug": true,
-      "timeout": 60000
-    },
-    {
-      "name": "Debug nwiki Extension",
-      "type": "extensionHost",
-      "request": "launch",
-      "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-      "outFiles": ["${workspaceFolder}/out/**/*.js"],
-      "preLaunchTask": "npm: compile",
-      "stopOnEntry": false,
-      "timeout": 60000
-    }
-  ]
+  "configurations": []
 }

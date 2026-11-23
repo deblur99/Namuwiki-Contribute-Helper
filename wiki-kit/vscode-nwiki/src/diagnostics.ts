@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import * as vscode from "vscode";
 import { closestTag, isKnownTag } from "./catalog";
+import { jsonImportDiagnostics } from "./jsonData";
 import { findWikiKitRoot } from "./paths";
 
 export const collection = vscode.languages.createDiagnosticCollection("nwiki");
@@ -20,6 +21,7 @@ export async function diagnose(doc: vscode.TextDocument): Promise<void> {
   const text = doc.getText();
 
   const imported = collectImportedTags(text);
+  diagnostics.push(...jsonImportDiagnostics(doc));
 
   // Lightweight unknown-tag scan (built-ins + import(...))
   const tagRe = /<\/?([A-Za-z_][\w-]*)/g;
@@ -82,11 +84,11 @@ sys.path.insert(0, ${JSON.stringify(root)})
 from engine.nwiki.parser import parse_document
 from engine.nwiki.errors import NwikiError
 from engine.nwiki.validate import validate_document
-from engine.nwiki.resolve import resolve_imports
+from engine.nwiki.resolve import resolve_document
 text = sys.stdin.read()
 try:
     doc = parse_document(text, path=${JSON.stringify(doc.uri.fsPath)})
-    resolved = resolve_imports(doc)
+    resolved = resolve_document(doc)
     validate_document(resolved)
 except NwikiError as e:
     idx = e.index if e.index is not None else 0
@@ -160,14 +162,15 @@ except Exception as e:
   });
 }
 
-/** Names from top-level import(Ident) / import("Ident") in this file. */
+/** Names from top-level import(Ident) / import("Ident") — skips *.json data imports. */
 export function collectImportedTags(text: string): Set<string> {
   const names = new Set<string>();
   const re = /\bimport\s*\(\s*(?:([A-Za-z_][\w]*)|"([^"]+)"|'([^']+)')\s*\)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     const name = m[1] || m[2] || m[3];
-    if (name) names.add(name);
+    if (!name || /\.json$/i.test(name)) continue;
+    names.add(name);
   }
   return names;
 }

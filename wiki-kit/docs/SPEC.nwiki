@@ -440,20 +440,67 @@
     - 둘 다: background-color: <solid>; background: <gradient…>
     - background 배열이면 쉼표로 레이어 중첩 (앞이 위)
 
-    enum BoxDisplay { case block, inline, inlineBlock, flex }  // CSS: inline-block
+    enum BoxDisplay { case block, inline, inlineBlock, inlineFlex, flex }
+    // CSS: inline-block / inline-flex
     enum FlexAlign { case center, flexStart, flexEnd, stretch, baseline }
     enum FlexJustify { case center, flexStart, flexEnd, spaceBetween, spaceAround }
     enum FlexDirection { case row, column }
     enum WordBreak { case keepAll, breakAll, normal }
 
     검증
-    - alignItems / justifyContent / flexDirection 은 display=.flex 일 때만.
+    - alignItems / justifyContent / flexDirection 은 display=.flex 또는 .inlineFlex 일 때만.
     - opacity 는 0...1.
     - CSS 길이: LayoutLength point → Npx, percent → N%.
 
     Divider
     - 1차: 별도 컴포넌트 없음. Box의 borderBottom / borderRight 로 표현.
     - 2차 설탕(추후): <Divider /> → 얇은 가로 border Box.
+*/
+
+<!-- Row / Column (Compose 태그명 + Flutter식 축 정렬) -->
+/*
+    TableRow/TableColumn 과 맞춘 레이아웃 프리미티브.
+    내부: Box(display=.flex | .inlineFlex, flexDirection=…) 로 낮춤.
+    정렬 API는 읽기 쉬운 Flutter 톤 (축 이름이 속성에 드러남).
+
+    <Row
+      crossAxisAlignment=CrossAxisAlignment?
+      mainAxisAlignment=MainAxisAlignment?
+      spacing=Float?
+      inline=Bool?
+      …BoxAttrs>
+      …가로 자식…
+    </Row>
+
+    <Column
+      crossAxisAlignment=CrossAxisAlignment?
+      mainAxisAlignment=MainAxisAlignment?
+      spacing=Float?
+      …BoxAttrs>
+      …세로 자식…
+    </Column>
+
+    - Row: flex-direction row. inline=true → display: inline-flex (기본 flex).
+    - Column: flex-direction column (항상 flex).
+    - crossAxisAlignment → align-items. 기본 .center.
+      Row: 교차축(세로). Column: 교차축(가로).
+      .center | .start | .end | .stretch | .baseline
+    - mainAxisAlignment → justify-content. 기본 없음 (CSS flex-start).
+      .start | .center | .end | .spaceBetween | .spaceAround | .spaceEvenly
+    - spacing → CSS gap (숫자면 Npx). 주축 간격.
+    - 크기·박스 모델: 별도 sugar 없음. width/height/margin/padding/bgColor/color/…
+      등 Box 속성을 Row/Column에 패스스루.
+    - 셀 너비(TableColumn width)와 CSS 박스 width 는 역할이 다름.
+    - TableColumn.alignment (<:>) 와 이름 공간이 다름 — 스택은 cross/mainAxis*.
+
+    예:
+    <Row inline=true crossAxisAlignment=.center spacing=4>
+      <Image fileName="로고.png" width=LayoutLength(100) />
+      <Column crossAxisAlignment=.start color=HexColor("#fff")>
+        <TitleText text="김마리" />
+        <Text text="관련 문서" size=.step(-1) weight=.bold />
+      </Column>
+    </Row>
 */
 
 <!-- Folding -->
@@ -572,19 +619,43 @@
 
 <!-- 다른 문서에서 템플릿 가져오기 -->
 /*
-    아래처럼 먼저 import 구문을 쓴 다음, 해당 템플릿을 가져다 쓴다.
-    실제 조립 예: ../examples/introduce.nwiki
+    8) import(_ name: Ident) -> Void
+    - 컴포넌트 .nwiki 를 불러 <Name …/> 로 사용.
+    - 실제 조립 예: ../examples/introduce.nwiki
 
     import(ProfileTable)
 
     <template>
         <ProfileTable name="김마리" />
     </template>
+
+    9) import(_ jsonPath: String) -> Void   // 경로가 .json 으로 끝나면 데이터 로드
+    - 위치: 파일 top-level 또는 <script> 안 (동일하게 처리).
+    - 상대경로: 이 .nwiki 파일이 있는 디렉터리 기준.
+    - 절대경로: 그대로 사용.
+    - 네임스페이스 = 파일 stem (designSystem.json → designSystem).
+    - JSON 루트는 { "key": "string", … } flat string 맵만 (1차).
+    - 템플릿에서 ${designSystem.accentColor} 또는 동일 MemberAccess 로 참조.
+    - 컴포넌트 .nwiki 의 JSON import 는 해당 컴포넌트 인라인 시에도 적용.
+    - 같은 stem 을 두 번 import 하면 빌드 에러.
+    - import("ProfileTable") 처럼 .json 이 아니면 컴포넌트 이름 문자열로 취급.
+
+    import("./data/designSystem.json")
+    // 또는
+    <script>
+      import("../data/designSystem.json")
+    </script>
+
+    <template>
+      <Table borderColor=HexColor("${designSystem.accentColor}")>
+        …
+      </Table>
+    </template>
 */
 
 <!-- 차후 구현 내용 -->
 /*
   - Divider 설탕 컴포넌트
-  - HStack (= display=.flex Box) 매크로
   - 뷰에 파라미터 전달하기: Vue.js처럼 바깥쪽
+  - ZStack / overlay (Compose Box 중첩과 별개)
 */

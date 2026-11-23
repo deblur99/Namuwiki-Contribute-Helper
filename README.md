@@ -6,7 +6,7 @@
 
 | 경로 | 역할 |
 |------|------|
-| [`wiki-kit/`](wiki-kit/README.md) | **권장** — `.nwiki` 조립 → 검증 → `outputs/*.md` |
+| [`wiki-kit/`](wiki-kit/README.md) | **권장** — `.nwiki` 조립 · `import("….json")` 데이터 주입 → 검증 → `outputs/*.md` |
 | `김마리/` + 루트 `scripts/build.py` | 레거시 — `${designSystem.*}` 토큰 치환 |
 
 상세 규칙은 [RULES.md](RULES.md)(레거시 토큰)와 [wiki-kit/docs/SPEC.nwiki](wiki-kit/docs/SPEC.nwiki)(nwiki 문법)를 따른다.
@@ -24,10 +24,10 @@ python3 -m unittest tests/test_nwiki_introduce.py
 에디터 지원:
 
 ```bash
-cd wiki-kit/vscode-nwiki && npm install && npm run compile
+cd wiki-kit/vscode-nwiki && npm install && npm run install:local
 ```
 
-저장소에서 **Run and Debug → Run nwiki Extension** (`Cmd+F5` 권장).  
+설치 후 **Developer: Reload Window**.  
 기능 목록은 [wiki-kit/vscode-nwiki/README.md](wiki-kit/vscode-nwiki/README.md).
 
 ## 구조

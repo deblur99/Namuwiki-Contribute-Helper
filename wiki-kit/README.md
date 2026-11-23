@@ -55,15 +55,16 @@ python3 -m unittest tests/test_nwiki_introduce.py
 
 - `includeFrame(.adult)` / `.discussion("사유")` / 문자열 틀 제목
 - `Box` 스타일 · `LinearGradient` · `Heading` · `Folding`
-- `import(ProfileTable)` → 동일 폴더(또는 examples)의 `.nwiki` 인라인
+- `import(ProfileTable)` → 컴포넌트 `.nwiki` 인라인
+- `import("./data/designSystem.json")` → stem 네임스페이스로 `${designSystem.key}` 주입
 
 ## VS Code / Cursor 확장
 
 ```bash
-cd vscode-nwiki && npm install && npm run compile
+cd vscode-nwiki && npm install && npm run install:local
 ```
 
-저장소 루트에서 **Run nwiki Extension** (`Cmd+F5`).  
+설치 후 **Developer: Reload Window**.  
 자동완성 · `///` 호버 · 근사 프리뷰 · `/`·`>` 태그 닫기 · 저장 시 빌드.
 
 ## 레거시 CLI

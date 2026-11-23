@@ -19,7 +19,7 @@ alwaysApply: false
 
 - top-level: `category("…")`, `include("…")`, `includeFrame(…)` / `CommonFrame`, `import(Name)`
 - `<script>` props 맵, `<template>` 마크업
-- 카탈로그에 있는 태그만: `Table`, `TableRow`, `TableColumn`, `Text`, `TitleText`, `Image`, `Link`, `Comment`, `Space`, `br`, `Box`, `Folding`, `Heading`, `Badge`, 그리고 `import`된 컴포넌트
+- 카탈로그에 있는 태그만: `Table`, `TableRow`, `TableColumn`, `Text`, `TitleText`, `Image`, `Link`, `Comment`, `Space`, `br`, `Box`, `Row`, `Column`, `Folding`, `Heading`, `Badge`, 그리고 `import`된 컴포넌트
 - 속성·값은 SPEC/카탈로그 시그니처 (`HexColor`, `LayoutLength`, `Spacing`, `Border`, enum `.case` 등)
 - 문서 주석: `///` 마크다운 줄
 

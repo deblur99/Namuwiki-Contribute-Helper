@@ -19,6 +19,7 @@
     "onCommand:nwiki.openOutput",
     "onCommand:nwiki.previewOutput",
     "onCommand:nwiki.formatDocument",
+    "onCommand:nwiki.formatTagMultiline",
     "onCommand:nwiki.showDiagnosticHelp"
   ],
   "main": "./out/extension.js",
@@ -67,6 +68,10 @@
         "title": "nwiki: Format Document"
       },
       {
+        "command": "nwiki.formatTagMultiline",
+        "title": "nwiki: Format Tag to Multiple Lines"
+      },
+      {
         "command": "nwiki.showDiagnosticHelp",
         "title": "nwiki: Show Diagnostic Help"
       },
@@ -87,6 +92,12 @@
         "key": "ctrl+alt+l",
         "mac": "cmd+alt+l",
         "when": "editorLangId == nwiki"
+      },
+      {
+        "command": "nwiki.formatTagMultiline",
+        "key": "ctrl+m",
+        "mac": "ctrl+m",
+        "when": "editorTextFocus && editorLangId == nwiki"
       },
       {
         "command": "nwiki.slashPadArrow",
@@ -157,6 +168,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "install:local": "npm run compile && node ./scripts/install-local.mjs",
+    "uninstall:local": "node ./scripts/uninstall-local.mjs",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

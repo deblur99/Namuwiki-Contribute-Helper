@@ -352,10 +352,25 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
 
 /** Enum cases suggested after `attr=` by attribute name */
 export const ATTR_ENUMS: Record<string, string[]> = {
-  display: [".block", ".inline", ".inlineBlock", ".flex"],
+  display: [".block", ".inline", ".inlineBlock", ".inlineFlex", ".flex"],
   align: [".left", ".center", ".right"],
   alignment: [".left", ".center", ".right"],
-  textAlign: [".left", ".center", ".right", ".justify"],
+  crossAxisAlignment: [
+    ".center",
+    ".start",
+    ".end",
+    ".stretch",
+    ".baseline",
+  ],
+  mainAxisAlignment: [
+    ".start",
+    ".center",
+    ".end",
+    ".spaceBetween",
+    ".spaceAround",
+    ".spaceEvenly",
+  ],
+  textAlign: [".left", ".center", ".right", ".justify", ".start", ".end"],
   wordBreak: [".keepAll", ".breakAll", ".normal"],
   weight: [".bold", ".regular", ".medium", ".semiBold"],
   decoration: [".underline", ".line-through", ".overline"],
@@ -367,7 +382,9 @@ export const ATTR_ENUMS: Record<string, string[]> = {
     ".flexEnd",
     ".spaceBetween",
     ".spaceAround",
+    ".spaceEvenly",
   ],
+  inline: ["true", "false"],
   collapsed: ["true", "false"],
 };
 

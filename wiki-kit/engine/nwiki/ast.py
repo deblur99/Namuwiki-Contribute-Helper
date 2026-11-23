@@ -62,3 +62,5 @@ class Document:
     stmts: list[CallStmt] = field(default_factory=list)
     script_props: dict[str, str] = field(default_factory=dict)
     template: list[Element] = field(default_factory=list)
+    # stem → flat string map from import("….json")
+    data_namespaces: dict[str, dict[str, str]] = field(default_factory=dict)

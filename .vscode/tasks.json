@@ -8,6 +8,18 @@
       "group": "build",
       "problemMatcher": ["$tsc"],
       "label": "npm: compile - vscode-nwiki"
+    },
+    {
+      "type": "npm",
+      "script": "install:local",
+      "path": "wiki-kit/vscode-nwiki/",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$tsc"],
+      "label": "npm: install:local - vscode-nwiki",
+      "detail": "Compile and symlink nwiki into ~/.cursor/extensions"
     }
   ]
 }

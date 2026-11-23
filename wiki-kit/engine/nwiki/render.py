@@ -57,6 +57,10 @@ def render_element(el: Element, *, table_ctx: dict | None) -> str:
         return "[br]"
     if name == "Box":
         return render_box(el)
+    if name == "Row":
+        return render_row_stack(el)
+    if name == "Column":
+        return render_column_stack(el)
     if name == "Folding":
         return render_folding(el)
     if name == "Heading":
@@ -122,6 +126,113 @@ def render_badge(el: Element) -> str:
     return render_box(synthetic)
 
 
+_STACK_PASSTHROUGH = (
+    "width",
+    "maxWidth",
+    "minWidth",
+    "height",
+    "margin",
+    "padding",
+    "border",
+    "borderTop",
+    "borderRight",
+    "borderBottom",
+    "borderLeft",
+    "borderRadius",
+    "bgColor",
+    "background",
+    "color",
+    "opacity",
+    "textAlign",
+    "wordBreak",
+    "fontSize",
+    "fontFamily",
+    "styleExtra",
+)
+
+
+def render_row_stack(el: Element) -> str:
+    """Compose-style Row → flex / inline-flex Box (row)."""
+    return render_box(_stack_as_box(el, direction="row"))
+
+
+def render_column_stack(el: Element) -> str:
+    """Compose-style Column → flex Box (column)."""
+    return render_box(_stack_as_box(el, direction="column"))
+
+
+def _stack_as_box(el: Element, *, direction: str) -> Element:
+    """Flutter-tone axes: crossAxisAlignment / mainAxisAlignment / spacing."""
+    attrs: dict = {}
+    for key in _STACK_PASSTHROUGH:
+        if key in el.attrs and el.attrs[key] is not None:
+            attrs[key] = el.attrs[key]
+
+    inline = el.attrs.get("inline") is True
+    if direction == "row" and inline:
+        attrs["display"] = EnumRef(name="inlineFlex")
+    else:
+        attrs["display"] = EnumRef(name="flex")
+    attrs["flexDirection"] = EnumRef(name=direction)
+
+    cross = el.attrs.get("crossAxisAlignment")
+    if cross is not None:
+        attrs["alignItems"] = _cross_axis_to_flex(cross)
+    else:
+        attrs["alignItems"] = EnumRef(name="center")
+
+    main = el.attrs.get("mainAxisAlignment")
+    if main is not None:
+        attrs["justifyContent"] = _main_axis_to_flex(main)
+
+    spacing = el.attrs.get("spacing")
+    if spacing is not None:
+        attrs["gap"] = spacing
+
+    return Element(name="Box", attrs=attrs, children=el.children)
+
+
+def _cross_axis_to_flex(val) -> EnumRef:
+    name = _enum_name(val)
+    mapping = {
+        "center": "center",
+        "start": "flexStart",
+        "end": "flexEnd",
+        "flexStart": "flexStart",
+        "flexEnd": "flexEnd",
+        "stretch": "stretch",
+        "baseline": "baseline",
+        "left": "flexStart",
+        "right": "flexEnd",
+        "top": "flexStart",
+        "bottom": "flexEnd",
+    }
+    if name not in mapping:
+        raise NwikiError(f"unknown crossAxisAlignment .{name}")
+    return EnumRef(name=mapping[name])
+
+
+def _main_axis_to_flex(val) -> EnumRef:
+    name = _enum_name(val)
+    mapping = {
+        "center": "center",
+        "start": "flexStart",
+        "end": "flexEnd",
+        "flexStart": "flexStart",
+        "flexEnd": "flexEnd",
+        "spaceBetween": "spaceBetween",
+        "spaceAround": "spaceAround",
+        "spaceEvenly": "spaceEvenly",
+        "left": "flexStart",
+        "right": "flexEnd",
+        "top": "flexStart",
+        "bottom": "flexEnd",
+    }
+    if name not in mapping:
+        raise NwikiError(f"unknown mainAxisAlignment .{name}")
+    return EnumRef(name=mapping[name])
+
+
 def _render_flow_children(children: list[Element]) -> str:
     parts: list[str] = []
     for ch in children:
@@ -185,7 +296,7 @@ def _box_style_string(el: Element) -> str:
     if el.attrs.get("opacity") is not None:
         add("opacity", _opacity_css(el.attrs["opacity"]))
 
-    is_flex = display_css == "flex"
+    is_flex = display_css in ("flex", "inline-flex")
     for attr, css in (
         ("alignItems", "align-items"),
         ("justifyContent", "justify-content"),
@@ -193,8 +304,11 @@ def _box_style_string(el: Element) -> str:
     ):
         if el.attrs.get(attr) is not None:
             if not is_flex:
-                raise NwikiError(f"{attr} requires display=.flex")
+                raise NwikiError(f"{attr} requires display=.flex or .inlineFlex")
             add(css, _flex_css(_enum_name(el.attrs[attr])))
+
+    if el.attrs.get("gap") is not None:
+        add("gap", _gap_css(el.attrs["gap"]))
 
     if el.attrs.get("textAlign") is not None:
         add("text-align", _enum_name(el.attrs["textAlign"]))
@@ -220,11 +334,21 @@ def _display_css(val) -> str:
         "block": "block",
         "inline": "inline",
         "inlineBlock": "inline-block",
+        "inlineFlex": "inline-flex",
         "flex": "flex",
     }
     if name not in mapping:
         raise NwikiError(f"unknown BoxDisplay .{name}")
     return mapping[name]
+
+
+def _gap_css(val) -> str:
+    if isinstance(val, (int, float)):
+        n = int(val) if isinstance(val, float) and val.is_integer() else val
+        return f"{n}px"
+    if isinstance(val, CallExpr) and val.name == "LayoutLength":
+        return _layout_length_css(val)
+    raise NwikiError("spacing/gap expected number (px) or LayoutLength")
 
 
 def _flex_css(name: str) -> str:
@@ -236,6 +360,7 @@ def _flex_css(name: str) -> str:
         "baseline": "baseline",
         "spaceBetween": "space-between",
         "spaceAround": "space-around",
+        "spaceEvenly": "space-evenly",
         "row": "row",
         "column": "column",
     }
@@ -402,6 +527,10 @@ def render_column_inner(col: Element, ctx: dict) -> str:
     if nopad is True:
         prefixes.append("<nopad>")
 
+    alignment = col.attrs.get("alignment")
+    if alignment is not None:
+        prefixes.append(_cell_align_prefix(alignment))
+
     if not ctx["hoisted"]:
         ctx["hoisted"] = True
         if ctx.get("align") is not None:
@@ -415,9 +544,13 @@ def render_column_inner(col: Element, ctx: dict) -> str:
 
     bg = col.attrs.get("bgColor")
     has_title = any(c.name == "TitleText" for c in col.children)
-    if has_title and bg is not None:
-        prefixes.append(f"<colbgcolor={_hex(bg)}>")
-        prefixes.append("<colcolor=#fff>")
+    if bg is not None:
+        if has_title:
+            prefixes.append(f"<colbgcolor={_hex(bg)}>")
+            prefixes.append("<colcolor=#fff>")
+        else:
+            # namuwiki cell bgcolor shorthand: <#RRGGBB>
+            prefixes.append(f"<{_hex(bg)}>")
 
     body = render_inline_children(col.children, delimiter=col.attrs.get("delimiter"))
     prefix = "".join(prefixes)
@@ -572,6 +705,19 @@ def _date_arg(call: CallExpr) -> str:
     m = int(d.kwargs["month"])
     day = int(d.kwargs["day"])
     return f"{y:04d}-{m:02d}-{day:02d}"
+
+
+def _cell_align_prefix(val) -> str:
+    """Namuwiki cell alignment: <:> / <(> / <)>."""
+    name = _enum_name(val)
+    mapping = {
+        "center": "<:>",
+        "left": "<(>",
+        "right": "<)>",
+    }
+    if name not in mapping:
+        raise NwikiError(f"unknown TableColumn alignment .{name}")
+    return mapping[name]
 
 
 def _enum_name(val) -> str:

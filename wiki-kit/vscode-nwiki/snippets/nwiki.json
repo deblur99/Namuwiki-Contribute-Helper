@@ -100,7 +100,12 @@
   "import": {
     "prefix": "imp",
     "body": "import(${1:ProfileTable})",
-    "description": "import() call"
+    "description": "import() component"
+  },
+  "import JSON": {
+    "prefix": "impj",
+    "body": "import(\"${1:../data/designSystem.json}\")",
+    "description": "import(\".json\") — stem namespace for ${stem.key}"
   },
   "Box": {
     "prefix": "box",
@@ -119,6 +124,24 @@
       "</Box>"
     ],
     "description": "Flex Box row"
+  },
+  "Row": {
+    "prefix": "row",
+    "body": [
+      "<Row crossAxisAlignment=.center spacing=${1:4}$2>",
+      "\t$0",
+      "</Row>"
+    ],
+    "description": "Row (flex row / inline-flex, Flutter-tone axes)"
+  },
+  "Column": {
+    "prefix": "column",
+    "body": [
+      "<Column crossAxisAlignment=.start$1>",
+      "\t$0",
+      "</Column>"
+    ],
+    "description": "Column (flex column, Flutter-tone axes)"
   },
   "Folding": {
     "prefix": "fold",

@@ -27,10 +27,12 @@ def _walk(el: Element, parent: Element | None) -> None:
             from .ast import EnumRef
 
             name = display.name if isinstance(display, EnumRef) else str(display).lstrip(".")
-            is_flex = name == "flex"
+            is_flex = name in ("flex", "inlineFlex")
         for flex_attr in ("alignItems", "justifyContent", "flexDirection"):
             if el.attrs.get(flex_attr) is not None and not is_flex:
-                raise NwikiError(f"{flex_attr} requires display=.flex")
+                raise NwikiError(
+                    f"{flex_attr} requires display=.flex or .inlineFlex"
+                )
     if el.name == "Folding":
         title = el.attrs.get("title")
         if not isinstance(title, str) or not title:

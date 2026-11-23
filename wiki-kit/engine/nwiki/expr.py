@@ -118,7 +118,8 @@ def parse_value(s: str, i: int):
         raise NwikiError("unexpected end in value", index=i)
 
     if s[i] in "\"'":
-        return parse_string(s, i)
+        raw, j = parse_string(s, i)
+        return parse_interp_string_content(raw), j
 
     if s[i] == ".":
         return parse_enum_or_member(s, i)

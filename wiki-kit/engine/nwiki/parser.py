@@ -108,7 +108,10 @@ def parse_document(source: str, *, path: str | None = None) -> Document:
 
     sm = _SCRIPT.search(cleaned)
     if sm:
-        doc.script_props = parse_script_props(sm.group(1))
+        script_body = sm.group(1)
+        doc.script_props = parse_script_props(script_body)
+        # import / category / include inside <script> (same as top-level)
+        doc.stmts.extend(parse_top_level_calls(script_body))
 
     tm = _TEMPLATE.search(cleaned)
     if tm:
