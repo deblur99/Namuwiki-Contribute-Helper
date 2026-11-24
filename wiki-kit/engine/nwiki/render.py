@@ -11,11 +11,16 @@ from .ast import (
     InterpString,
     MemberAccess,
 )
+from .docpath import resolve_to_document
 from .errors import NwikiError
 from .frames import build_include_macro
 
+# Set for the duration of render_document (Link/Heading toDocument).
+_render_document_name: str | None = None
+
 
 def render_document(doc: Document) -> str:
+    global _render_document_name
     parts: list[str] = []
     cats = [s for s in doc.stmts if s.name == "category"]
     incs = [s for s in doc.stmts if s.name in ("include", "includeFrame")]
@@ -28,9 +33,20 @@ def render_document(doc: Document) -> str:
         parts.append("".join(cat_bits))
     for s in incs:
         parts.append(build_include_macro(s))
-    for el in doc.template:
-        parts.append(render_element(el, table_ctx=None))
-    return "\n".join(p for p in parts if p is not None and p != "")
+    prev = _render_document_name
+    _render_document_name = doc.document_name
+    try:
+        emitted_toc = False
+        for el in doc.template:
+            if el.name == "Heading" and not emitted_toc:
+                parts.append("[목차]\n[clearfix]")
+                emitted_toc = True
+                parts.append(render_heading(el, depth=2))
+            else:
+                parts.append(render_element(el, table_ctx=None))
+        return "\n".join(p for p in parts if p is not None and p != "")
+    finally:
+        _render_document_name = prev
 
 
 def render_element(el: Element, *, table_ctx: dict | None) -> str:
@@ -64,9 +80,11 @@ def render_element(el: Element, *, table_ctx: dict | None) -> str:
     if name == "Folding":
         return render_folding(el)
     if name == "Heading":
-        return render_heading(el)
+        return render_heading(el, depth=2)
     if name == "Badge":
         return render_badge(el)
+    if name == "Quote":
+        return render_quote(el)
     raise NwikiError(f"unknown element {name}")
 
 
@@ -86,25 +104,61 @@ def render_folding(el: Element) -> str:
     return "{{{#!folding [ " + title + " ]\n" + body + "\n}}}"
 
 
-def render_heading(el: Element) -> str:
+def render_heading(el: Element, *, depth: int = 2) -> str:
+    """Root Heading → == (depth 2); nested Heading children deepen by 1 (max 6)."""
+    if el.attrs.get("level") is not None:
+        raise NwikiError(
+            "Heading no longer takes level=…; nest <Heading> for deeper sections"
+        )
     title = el.attrs.get("title")
     if not isinstance(title, str) or not title:
         raise NwikiError("Heading requires title string")
-    level = el.attrs.get("level", 2)
-    if isinstance(level, float) and level.is_integer():
-        level = int(level)
-    if not isinstance(level, int) or level < 1 or level > 6:
-        raise NwikiError("Heading level must be integer 1...6")
-    collapsed = el.attrs.get("collapsed") is True
-    marks = "=" * level
-    if collapsed:
-        line = f"{marks}# {title} #{marks}"
+    if not isinstance(depth, int) or depth < 1 or depth > 6:
+        raise NwikiError(
+            f"Heading nesting exceeds max depth 6 (got {depth}); flatten sections"
+        )
+
+    to_doc = el.attrs.get("toDocument")
+    to_ext = el.attrs.get("toExternal")
+    if to_doc is not None and to_ext is not None:
+        raise NwikiError("Heading cannot take both toDocument and toExternal")
+    if isinstance(to_doc, str):
+        target = resolve_to_document(to_doc, _render_document_name)
+        heading_text = f"[[{target}|{title}]]"
+    elif isinstance(to_ext, str):
+        heading_text = f"[[{to_ext}|{title}]]"
+    elif to_doc is not None or to_ext is not None:
+        raise NwikiError("Heading toDocument/toExternal must be string")
     else:
-        line = f"{marks} {title} {marks}"
+        heading_text = title
+
+    collapsed = el.attrs.get("collapsed") is True
+    marks = "=" * depth
+    if collapsed:
+        line = f"{marks}# {heading_text} #{marks}"
+    else:
+        line = f"{marks} {heading_text} {marks}"
+
     if not el.children:
         return line
+    chunks: list[str] = [line]
+    for ch in el.children:
+        if ch.name == "Heading":
+            chunks.append(render_heading(ch, depth=depth + 1))
+        else:
+            chunks.append(render_element(ch, table_ctx=None))
+    return "\n".join(c for c in chunks if c is not None and c != "")
+
+
+def render_quote(el: Element) -> str:
+    """Namuwiki blockquote: each output line prefixed with '> '."""
     body = _render_flow_children(el.children)
-    return line + "\n" + body if body else line
+    if not body:
+        return "> "
+    if "\n" in body:
+        lines = body.split("\n")
+        return "\n".join(f"> {line}" if line else ">" for line in lines)
+    return f"> {body}"
 
 
 def render_badge(el: Element) -> str:
@@ -642,10 +696,15 @@ def render_image(el: Element) -> str:
 
 
 def render_link(el: Element) -> str:
-    target = el.attrs.get("toDocument")
-    if target is None:
-        target = el.attrs.get("toExternal")
-    if not isinstance(target, str):
+    to_doc = el.attrs.get("toDocument")
+    to_ext = el.attrs.get("toExternal")
+    if to_doc is not None and to_ext is not None:
+        raise NwikiError("Link cannot take both toDocument and toExternal")
+    if isinstance(to_doc, str):
+        target = resolve_to_document(to_doc, _render_document_name)
+    elif isinstance(to_ext, str):
+        target = to_ext
+    else:
         raise NwikiError("Link requires toDocument or toExternal")
 
     label_attr = el.attrs.get("label")

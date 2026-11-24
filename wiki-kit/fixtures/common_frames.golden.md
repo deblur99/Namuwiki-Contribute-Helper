@@ -8,5 +8,7 @@
 [include(틀:선정성)]
 [include(틀:스포일러)]
 [include(틀:김마리(가수))]
+[목차]
+[clearfix]
 == 공통 틀 ==
 본문

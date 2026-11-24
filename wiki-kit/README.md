@@ -14,7 +14,7 @@
 | 작성 | `examples/*.nwiki` — `category` / `includeFrame` / `import` + `<template>` |
 | 스펙 | [`docs/SPEC.nwiki`](docs/SPEC.nwiki) (엔진 입력 아님, 문법 정본) |
 | 엔진 | `engine/nwiki/` — 파서 · 렌더 · `CommonFrame` · `import` 해석 |
-| 검증 | 태그/속성 규칙, HexColor 3/6자리, Heading level 등 |
+| 검증 | 태그/속성 규칙, HexColor 3/6자리, Heading 중첩 깊이 등 |
 | 빌드 | `outputs/<stem>.md` |
 | 에디터 | [`vscode-nwiki/`](vscode-nwiki/README.md) |
 
@@ -54,7 +54,7 @@ python3 -m unittest tests/test_nwiki_introduce.py
 지원 문법 요약:
 
 - `includeFrame(.adult)` / `.discussion("사유")` / 문자열 틀 제목
-- `Box` 스타일 · `LinearGradient` · `Heading` · `Folding`
+- `Box` 스타일 · `LinearGradient` · `Heading`(중첩=`=` 깊이, 목차 자동) · `Folding`
 - `import(ProfileTable)` → 컴포넌트 `.nwiki` 인라인
 - `import("./data/designSystem.json")` → stem 네임스페이스로 `${designSystem.key}` 주입
 

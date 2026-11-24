@@ -64,3 +64,5 @@ class Document:
     template: list[Element] = field(default_factory=list)
     # stem → flat string map from import("….json")
     data_namespaces: dict[str, dict[str, str]] = field(default_factory=dict)
+    # from document("표제어") — current wiki document title
+    document_name: str | None = None

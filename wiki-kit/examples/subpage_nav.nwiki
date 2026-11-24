@@ -11,5 +11,5 @@ includeFrame("상위 문서")
 includeFrame("김마리(가수)")
 
 <template>
-  <Heading level=2 title="음반 목록" />
+  <Heading title="음반 목록" />
 </template>

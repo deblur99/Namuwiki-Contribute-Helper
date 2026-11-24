@@ -57,7 +57,9 @@ def _is_doc_comment_line(source: str, i: int) -> bool:
 
 _SCRIPT = re.compile(r"<script>(.*?)</script>", re.DOTALL | re.IGNORECASE)
 _TEMPLATE = re.compile(r"<template>(.*?)</template>", re.DOTALL | re.IGNORECASE)
-_CALL_HEAD = re.compile(r"\b(category|include|includeFrame|import)\s*\(")
+_CALL_HEAD = re.compile(
+    r"\b(category|include|includeFrame|import|document)\s*\("
+)
 _PROP_ENTRY = re.compile(r'"([^"]+)"\s*:\s*"([^"]*)"')
 
 
@@ -102,6 +104,8 @@ def parse_top_level_calls(cleaned: str) -> list[CallStmt]:
 
 
 def parse_document(source: str, *, path: str | None = None) -> Document:
+    from .docpath import bind_document_name
+
     cleaned = strip_comments(source)
     doc = Document(path=path)
     doc.stmts = parse_top_level_calls(cleaned)
@@ -110,7 +114,7 @@ def parse_document(source: str, *, path: str | None = None) -> Document:
     if sm:
         script_body = sm.group(1)
         doc.script_props = parse_script_props(script_body)
-        # import / category / include inside <script> (same as top-level)
+        # import / category / include / document inside <script> (same as top-level)
         doc.stmts.extend(parse_top_level_calls(script_body))
 
     tm = _TEMPLATE.search(cleaned)
@@ -122,6 +126,7 @@ def parse_document(source: str, *, path: str | None = None) -> Document:
             raise NwikiError("trailing content in <template>", index=idx)
         doc.template = elements
 
+    bind_document_name(doc)
     return doc
 
 

@@ -76,13 +76,14 @@ class IntroduceGoldenTest(unittest.TestCase):
             'includeFrame(.adult)\n'
             "<template>\n"
             "  /// before heading\n"
-            '  <Heading level=2 title="x" />\n'
+            '  <Heading title="x" />\n'
             "</template>\n"
         )
         cleaned = strip_comments(src)
         self.assertNotIn("///", cleaned)
         out = render_document(parse_document(src))
         self.assertIn("[include(틀:선정성)]", out)
+        self.assertIn("[목차]", out)
         self.assertIn("== x ==", out)
 
     def test_common_frame_associated_and_flat(self) -> None:
@@ -131,26 +132,182 @@ class IntroduceGoldenTest(unittest.TestCase):
         doc = parse_document(
             """
 <template>
-  <Heading level=2 title="개요" />
-  <Heading level=3 title="스포일러" collapsed=true>
-    <Text text="숨긴 본문" />
+  <Heading title="개요">
+    <Text text="소개" />
+    <Heading title="스포일러" collapsed=true>
+      <Text text="숨긴 본문" />
+    </Heading>
   </Heading>
-  <Heading level=1 title="최상위" />
+  <Heading title="여담" />
 </template>
 """
         )
         validate_document(doc)
         out = render_document(doc)
-        self.assertIn("== 개요 ==", out)
+        self.assertTrue(out.startswith("[목차]\n[clearfix]\n== 개요 =="))
+        self.assertIn("소개", out)
         self.assertIn("===# 스포일러 #===", out)
         self.assertIn("숨긴 본문", out)
-        self.assertIn("= 최상위 =", out)
+        self.assertIn("== 여담 ==", out)
 
-        bad = parse_document(
-            '<template><Heading level=7 title="x" /></template>'
+        bad_level = parse_document(
+            '<template><Heading level=2 title="x" /></template>'
+        )
+        with self.assertRaises(NwikiError) as ctx:
+            validate_document(bad_level)
+        self.assertIn("level", str(ctx.exception))
+
+        # depth 2 + 5 nests → depth 7 exceeds max
+        deep = "<template><Heading title='a'>" + "".join(
+            f"<Heading title='d{i}'>" for i in range(5)
+        ) + "<Text text='x' />" + ("</Heading>" * 5) + "</Heading></template>"
+        bad_deep = parse_document(deep)
+        with self.assertRaises(NwikiError):
+            validate_document(bad_deep)
+
+    def test_heading_link_and_toc(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+        from engine.nwiki.validate import validate_document
+
+        doc = parse_document(
+            """
+<template>
+  <Quote><Text text="앞" /></Quote>
+  <Heading title="음반" toDocument="/음반 목록" />
+  <Heading title="외부" toExternal="https://example.com" />
+</template>
+"""
+        )
+        validate_document(doc)
+        out = render_document(doc)
+        self.assertIn("> 앞\n[목차]\n[clearfix]\n== [[/음반 목록|음반]] ==", out)
+        self.assertIn("== [[https://example.com|외부]] ==", out)
+
+        both = parse_document(
+            '<template><Heading title="x" toDocument="a" toExternal="b" /></template>'
         )
         with self.assertRaises(NwikiError):
-            validate_document(bad)
+            validate_document(both)
+
+        no_heading = parse_document(
+            '<template><Quote><Text text="만" /></Quote></template>'
+        )
+        out2 = render_document(no_heading)
+        self.assertNotIn("[목차]", out2)
+
+    def test_document_relative_todocument(self) -> None:
+        from engine.nwiki.docpath import resolve_to_document
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+        from engine.nwiki.validate import validate_document
+
+        self.assertEqual(
+            resolve_to_document("./음반 목록", "김마리(가수)"),
+            "김마리(가수)/음반 목록",
+        )
+        self.assertEqual(
+            resolve_to_document("../공연 목록", "김마리(가수)/음반 목록"),
+            "김마리(가수)/공연 목록",
+        )
+        self.assertEqual(
+            resolve_to_document(r"\./음반 목록", "김마리(가수)"),
+            "./음반 목록",
+        )
+        self.assertEqual(
+            resolve_to_document(r"\../공연 목록", None),
+            "../공연 목록",
+        )
+        self.assertEqual(
+            resolve_to_document("\\\\./음반 목록", None),
+            "\\./음반 목록",
+        )
+        self.assertEqual(resolve_to_document("음반 목록", None), "음반 목록")
+
+        # nwiki string unescape: "\\./x" → value \./x → literal ./x
+        esc = parse_document(
+            'document("A")\n'
+            '<template><Link toDocument="\\\\./x" /></template>\n'
+        )
+        validate_document(esc)
+        self.assertEqual(esc.template[0].attrs["toDocument"], "\\./x")
+        self.assertIn("[[./x]]", render_document(esc))
+
+        doc = parse_document(
+            """
+document("김마리(가수)")
+<template>
+  <Heading title="음반" toDocument="./음반 목록" />
+  <Link toDocument="./응원법" />
+  <Link toDocument="./응원법" label="응원" />
+</template>
+"""
+        )
+        self.assertEqual(doc.document_name, "김마리(가수)")
+        validate_document(doc)
+        out = render_document(doc)
+        self.assertIn("== [[김마리(가수)/음반 목록|음반]] ==", out)
+        self.assertIn("[[김마리(가수)/응원법]]", out)
+        self.assertIn("[[김마리(가수)/응원법|응원]]", out)
+
+        sub = parse_document(
+            """
+document("김마리(가수)/음반 목록")
+<template>
+  <Link toDocument="../공연 목록" />
+</template>
+"""
+        )
+        validate_document(sub)
+        self.assertIn(
+            "[[김마리(가수)/공연 목록]]", render_document(sub)
+        )
+
+        with self.assertRaises(NwikiError):
+            parse_document('document("a")\ndocument("b")\n')
+
+        missing = parse_document(
+            '<template><Link toDocument="./x" /></template>'
+        )
+        with self.assertRaises(NwikiError):
+            validate_document(missing)
+
+        no_parent = parse_document(
+            'document("김마리(가수)")\n'
+            '<template><Link toDocument="../x" /></template>\n'
+        )
+        with self.assertRaises(NwikiError):
+            validate_document(no_parent)
+
+    def test_quote_block(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+        from engine.nwiki.validate import validate_document
+
+        doc = parse_document(
+            """
+<template>
+  <Quote>
+    <Text text="인용구" weight=.bold />
+  </Quote>
+  <Quote>
+    <Text text="첫 줄" />
+    <br />
+    <Text text="둘째" />
+  </Quote>
+  <Quote>
+    <Link toDocument="가수" label="문서" />
+    <Space />
+    <Text text="본문" />
+  </Quote>
+</template>
+"""
+        )
+        validate_document(doc)
+        out = render_document(doc)
+        self.assertIn("> '''인용구'''", out)
+        self.assertIn("> 첫 줄[br]둘째", out)
+        self.assertIn("> [[가수|문서]] 본문", out)
 
     def test_opacity_and_gradients(self) -> None:
         from engine.nwiki.parser import parse_document

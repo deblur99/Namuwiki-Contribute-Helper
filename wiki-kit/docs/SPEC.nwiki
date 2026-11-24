@@ -272,9 +272,20 @@
     <Link toDocument="가수" />
     → [[가수]]  (label·children 모두 없으면 표시 = 대상)
 
-    3) 하위 문서 (상대 경로)
-    <Link toDocument="/음반 목록" label="음반" />
-    → [[/음반 목록|음반]]
+    3) document() 기준 상대 경로 (해석 후 문자열 값)
+    document("김마리(가수)")
+    <Link toDocument="./음반 목록" />
+    → [[김마리(가수)/음반 목록]]
+    <Link toDocument="./음반 목록" label="음반" />
+    → [[김마리(가수)/음반 목록|음반]]   // label 은 표시≠대상일 때만
+
+    document("김마리(가수)/음반 목록")
+    <Link toDocument="../공연 목록" />
+    → [[김마리(가수)/공연 목록]]
+
+    // 문자열 리터럴이 \ 를 먼저 언이스케이프한 뒤 경로 규칙 적용.
+    // 값 \./… → 리터럴 ./…  (소스 "\\./…")
+    // 값 \\./… → 리터럴 \./… (소스 "\\\\./…")
 
     4) 이미지를 링크에 첨부하기
     <Link toExternal="https://www.instagram.com/for.marie/">
@@ -283,9 +294,9 @@
 
     ---
     속성
-    - toDocument: String?   위키 문서명. `/`로 시작하면 현재 문서 기준 하위 경로.
+    - toDocument: String?   위키 문서명. ./ · ../ 는 document() 기준 상대.
     - toExternal: String?   http(s) URL.
-    - label: String?        표시 문자열. children과 동시 사용 금지.
+    - label: String?        표시가 대상과 다를 때만. 생략 시 [[대상]].
     - children: Text | Image  표시 라벨. (인라인 서식 Text는 추후 확장)
 
     검증
@@ -293,9 +304,10 @@
     - label과 children 동시 지정 → 에러.
     - children이 있으면 Text | Image 외 금지.
     - toExternal은 http:// 또는 https:// 로 시작.
+    - ./ · ../ 사용 시 document() 필수. ../ 는 부모 세그먼트 필요.
 
     빌드
-    - 대상 = toDocument ?? toExternal
+    - 대상 = resolve(toDocument) ?? toExternal
     - 표시 = children 렌더 결과 ?? label ?? (없으면 대상만으로 [[대상]])
     - 출력 = 표시 있음 ? "[[\(대상)|\(표시)]]" : "[[\(대상)]]"
 */
@@ -512,25 +524,63 @@
       독자 설정의 「접기 문법을 기본으로 펼치기」만 가능 → nwiki에도 initial 속성을 두지 않는다.
 */
 
-<!-- Heading (문단) -->
+<!-- Heading (문단) + 목차 -->
 /*
     위키 문단 구분자. 한 줄 전체를 차지한다.
-    == 제목 ==  …  ====== 제목 ======  (level 1...6, 등호 개수)
+    등급은 level= 이 아니라 **중첩 깊이**로 정한다 (소스 들여쓰기는 가독성일 뿐 의미 없음).
+    - 템플릿 루트 Heading → ==  (depth 2, 나무위키 본문 관례)
+    - 자식 Heading → === … 최대 ====== (depth ≤ 6)
+    - level= 속성은 제거됨 (있으면 빌드 에러).
 
-    <Heading level=2 title="개요" />
-    → == 개요 ==
+    목차: 루트 Heading 이 하나라도 있으면 첫 루트 Heading 직전에 자동 삽입
+      [목차]
+      [clearfix]
+    (별도 <Toc /> 태그 없음.)
 
-    <Heading level=3 title="여담" collapsed=true />
-    → ===# 여담 #===
-    - collapsed=true: 문단 기본 숨김 (`=# #=` 형태). Folding(#!folding)과 별개.
+    <Heading title="개요" />
+    → [목차] / [clearfix] 후 == 개요 ==
 
-    <Heading level=2 title="개요">
-      <Text text="본문…" />
+    <Heading title="개요">
+      <Text text="소개 본문" />
+      <Heading title="데뷔" collapsed=true>
+        <Text text="세부" />
+      </Heading>
     </Heading>
     → == 개요 ==
-      본문…
+      소개 본문
+      ===# 데뷔 #===
+      세부
 
-    검증: level 은 1...6 정수. title 문자열 필수.
+    링크 문단 (표시는 title; 자식으로 Link 감싸기 금지 — children 은 본문):
+    document("김마리(가수)")
+    <Heading title="음반" toDocument="./음반 목록" />
+    → == [[김마리(가수)/음반 목록|음반]] ==
+    - toDocument / toExternal 둘 중 하나. 표시 문구는 항상 title.
+
+    collapsed=true: 문단 기본 숨김 (`=# #=`). Folding(#!folding)과 별개.
+    검증: title 문자열 필수. 중첩 depth ≤ 6.
+*/
+
+<!-- 인용구 (Quote) -->
+/*
+    위키: 줄 맨 앞 `> ` — 인용 블록. 본문에는 텍스트·링크·이미지 등 인라인 요소 가능.
+    `'''…'''` 은 `<Text text="…" weight=.bold>` 와 동일(굵게).
+
+    <Quote>
+      <Text text="인용구" weight=.bold />
+    </Quote>
+    → > '''인용구'''
+
+    <Quote>
+      <Link toDocument="가수" label="문서" />
+      <Space />
+      <Text text="인용 본문" />
+    </Quote>
+    → > [[가수|문서]] 인용 본문
+
+    - 자식은 Box/Folding 과 같이 흐름(인라인)으로 이어 붙인다.
+    - 렌더 결과에 줄바꿈이 있으면 각 줄 앞에 `> ` 를 붙인다.
+    - `[br]` 로 같은 인용 블록 안에서 줄바꿈.
 */
 
 <!-- Badge (설탕) -->
@@ -563,18 +613,25 @@
         let day: Int
     }
 
-    4) category(_ name: String) -> Void
+    4) document(_ title: String) -> Void
+    - 현재 위키 문서 표제어. 렌더 출력 없음.
+    - Link/Heading toDocument 의 ./ · ../ 해석 기준.
+    - 파일당 하나. 중복 시 빌드 에러.
+    document("김마리(가수)")
+    document("김마리(가수)/음반 목록")
+
+    5) category(_ name: String) -> Void
     - 분류 연결할 때 사용된다. 한 줄에 하나씩 나열.
 
-    5) include(_ documentTitle: String | CommonFrame) -> Void
+    6) include(_ documentTitle: String | CommonFrame) -> Void
     - 위키 문서 전체 제목으로 임베드. 문자열 예: include("틀:접근 제한")
     - CommonFrame enum이면 자동으로 틀: 접두.
 
-    6) includeFrame(_ frame: String | CommonFrame) -> Void
+    7) includeFrame(_ frame: String | CommonFrame) -> Void
     - 문자열이면 앞에 틀: 를 붙인다 (이미 틀: 이면 유지).
     - CommonFrame bare / associated-call 지원.
 
-    7) CommonFrame (자주 쓰는 공통 틀)
+    8) CommonFrame (자주 쓰는 공통 틀)
     enum CommonFrame {
       case spoiler, spoilerSection, adult, incident, unpublished, stub
       case npov, mpov, accessRestricted
@@ -606,8 +663,8 @@
     [include(틀:김마리(가수))]
 
     작성 스타일
-    - category / include / includeFrame 은 한 줄에 호출 하나.
-    - 권장 순서: 분류 → 접근 제한 → 문서 유도 → 상위/하위/관련 → 토론 → 스포일러·선정성 등 → 둘러보기 틀 → 본문.
+    - document / category / include / includeFrame 은 한 줄에 호출 하나.
+    - 권장 순서: document → 분류 → 접근 제한 → 문서 유도 → 상위/하위/관련 → 토론 → 스포일러·선정성 등 → 둘러보기 틀 → 본문.
 */
 
 <!-- 관련 프로토콜 -->

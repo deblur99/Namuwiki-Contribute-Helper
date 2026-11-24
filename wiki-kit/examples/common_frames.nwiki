@@ -12,6 +12,6 @@ includeFrame(.spoiler)
 includeFrame("김마리(가수)")
 
 <template>
-  <Heading level=2 title="공통 틀" />
+  <Heading title="공통 틀" />
   <Text text="본문" />
 </template>

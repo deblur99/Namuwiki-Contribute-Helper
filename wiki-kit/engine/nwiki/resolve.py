@@ -61,6 +61,7 @@ def resolve_imports(
         script_props=dict(doc.script_props),
         template=[],
         data_namespaces=dict(namespaces),
+        document_name=doc.document_name,
     )
 
     imports = component_import_names(doc)
