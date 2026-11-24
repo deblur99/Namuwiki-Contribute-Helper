@@ -16,6 +16,7 @@ export const TAGS = [
   "Column",
   "Folding",
   "Heading",
+  "Quote",
   "Badge",
   "script",
   "template",
@@ -23,88 +24,154 @@ export const TAGS = [
 
 export type TagName = (typeof TAGS)[number];
 
-export const TAG_ATTRS: Record<string, string[]> = {
-  Table: ["width", "align", "borderColor", "bgColor"],
-  TableRow: ["alignment"],
-  TableColumn: [
-    "width",
-    "bgColor",
-    "alignment",
-    "delimiter",
-    "colSpan",
-    "nopad",
-  ],
-  Text: ["text", "size", "color", "weight", "decoration", "alignment"],
-  TitleText: ["text"],
-  Image: ["fileName", "src", "width", "height"],
-  Link: ["toDocument", "toExternal", "label"],
-  Comment: ["text"],
-  Space: [],
-  br: [],
-  Box: [
-    "width",
-    "maxWidth",
-    "minWidth",
-    "height",
-    "margin",
-    "padding",
-    "border",
-    "borderTop",
-    "borderRight",
-    "borderBottom",
-    "borderLeft",
-    "borderRadius",
-    "bgColor",
-    "background",
-    "color",
-    "opacity",
-    "display",
-    "alignItems",
-    "justifyContent",
-    "flexDirection",
-    "textAlign",
-    "wordBreak",
-    "fontSize",
-    "fontFamily",
-    "styleExtra",
-  ],
-  Row: [
-    "crossAxisAlignment",
-    "mainAxisAlignment",
-    "spacing",
-    "inline",
-    "width",
-    "maxWidth",
-    "minWidth",
-    "height",
-    "margin",
-    "padding",
-    "bgColor",
-    "color",
-    "textAlign",
-    "styleExtra",
-  ],
-  Column: [
-    "crossAxisAlignment",
-    "mainAxisAlignment",
-    "spacing",
-    "width",
-    "maxWidth",
-    "minWidth",
-    "height",
-    "margin",
-    "padding",
-    "bgColor",
-    "color",
-    "textAlign",
-    "styleExtra",
-  ],
-  Folding: ["title"],
-  Heading: ["level", "title", "collapsed"],
-  Badge: ["bgColor", "borderRadius", "padding", "color"],
+export type AttrReq =
+  | { kind: "required" }
+  | { kind: "optional" }
+  /** Exactly one of the group when required (default). At most one when required: false. */
+  | { kind: "oneOf"; group: string; required?: boolean };
+
+/** Machine source of truth for required / optional / XOR attributes. */
+export const TAG_ATTR_SPEC: Record<string, Record<string, AttrReq>> = {
+  Table: {
+    width: { kind: "optional" },
+    align: { kind: "optional" },
+    borderColor: { kind: "optional" },
+    bgColor: { kind: "optional" },
+  },
+  TableRow: {
+    alignment: { kind: "optional" },
+  },
+  TableColumn: {
+    width: { kind: "optional" },
+    bgColor: { kind: "optional" },
+    alignment: { kind: "optional" },
+    delimiter: { kind: "optional" },
+    colSpan: { kind: "optional" },
+    nopad: { kind: "optional" },
+  },
+  Text: {
+    text: { kind: "required" },
+    size: { kind: "optional" },
+    color: { kind: "optional" },
+    weight: { kind: "optional" },
+    decoration: { kind: "optional" },
+    alignment: { kind: "optional" },
+  },
+  TitleText: {
+    text: { kind: "required" },
+  },
+  Image: {
+    fileName: { kind: "oneOf", group: "imageSrc" },
+    src: { kind: "oneOf", group: "imageSrc" },
+    width: { kind: "optional" },
+    height: { kind: "optional" },
+  },
+  Link: {
+    toDocument: { kind: "oneOf", group: "linkTarget" },
+    toExternal: { kind: "oneOf", group: "linkTarget" },
+    label: { kind: "optional" },
+  },
+  Comment: {
+    text: { kind: "optional" },
+  },
+  Space: {},
+  br: {},
+  Box: Object.fromEntries(
+    [
+      "width",
+      "maxWidth",
+      "minWidth",
+      "height",
+      "margin",
+      "padding",
+      "border",
+      "borderTop",
+      "borderRight",
+      "borderBottom",
+      "borderLeft",
+      "borderRadius",
+      "bgColor",
+      "background",
+      "color",
+      "opacity",
+      "display",
+      "alignItems",
+      "justifyContent",
+      "flexDirection",
+      "textAlign",
+      "wordBreak",
+      "fontSize",
+      "fontFamily",
+      "styleExtra",
+    ].map((a) => [a, { kind: "optional" as const }])
+  ),
+  Row: Object.fromEntries(
+    [
+      "crossAxisAlignment",
+      "mainAxisAlignment",
+      "spacing",
+      "inline",
+      "width",
+      "maxWidth",
+      "minWidth",
+      "height",
+      "margin",
+      "padding",
+      "bgColor",
+      "color",
+      "textAlign",
+      "styleExtra",
+    ].map((a) => [a, { kind: "optional" as const }])
+  ),
+  Column: Object.fromEntries(
+    [
+      "crossAxisAlignment",
+      "mainAxisAlignment",
+      "spacing",
+      "width",
+      "maxWidth",
+      "minWidth",
+      "height",
+      "margin",
+      "padding",
+      "bgColor",
+      "color",
+      "textAlign",
+      "styleExtra",
+    ].map((a) => [a, { kind: "optional" as const }])
+  ),
+  Folding: {
+    title: { kind: "required" },
+  },
+  Heading: {
+    title: { kind: "required" },
+    collapsed: { kind: "optional" },
+    toDocument: { kind: "oneOf", group: "linkTarget", required: false },
+    toExternal: { kind: "oneOf", group: "linkTarget", required: false },
+  },
+  Quote: {},
+  Badge: {
+    bgColor: { kind: "optional" },
+    borderRadius: { kind: "optional" },
+    padding: { kind: "optional" },
+    color: { kind: "optional" },
+  },
+  script: {},
+  template: {},
 };
 
-export const CALLS = ["category", "include", "includeFrame", "import"] as const;
+/** Attribute names per tag (required → oneOf → optional order). */
+export const TAG_ATTRS: Record<string, string[]> = Object.fromEntries(
+  Object.entries(TAG_ATTR_SPEC).map(([tag, spec]) => [tag, orderedAttrNames(spec)])
+);
+
+export const CALLS = [
+  "document",
+  "category",
+  "include",
+  "includeFrame",
+  "import",
+] as const;
 
 /** One-line docs per attribute (hover / completion). */
 export const ATTR_DOCS: Record<string, string> = {
@@ -133,9 +200,10 @@ export const ATTR_DOCS: Record<string, string> = {
   decoration: "밑줄·취소선 등 (`.underline` / `.line-through`).",
   fileName: "위키 파일명 (업로드된 이미지).",
   src: "이미지 URL/경로 (fileName 대안).",
-  toDocument: "내부 문서 링크 대상.",
+  toDocument:
+    "내부 문서. `./하위`·`../형제`는 document() 기준. 표시≠대상일 때만 label.",
   toExternal: "외부 URL 링크.",
-  label: "링크에 보이는 텍스트.",
+  label: "Link 표시 문구 (대상과 다를 때만).",
   margin: "바깥 여백 (`Spacing`).",
   padding: "안쪽 여백 (`Spacing`).",
   border: "테두리 일괄 (`Border`).",
@@ -155,45 +223,36 @@ export const ATTR_DOCS: Record<string, string> = {
   fontFamily: "글꼴 패밀리 문자열.",
   styleExtra: "추가 raw CSS (끝에 이어 붙임).",
   title: "접기·문단 제목 문자열.",
-  level: "문단 깊이 1…6 (`=` 개수).",
   collapsed: "`true`면 `==# … #==` 접힌 문단.",
 };
 
-/** Built-in tag hover docs (요약 + 속성 한 줄 목록). */
+const TAG_SUMMARIES: Record<string, string> = {
+  Table: "나무위키 표.",
+  TableRow: "표 행. 자식은 `TableColumn`만.",
+  TableColumn: "표 칸.",
+  Text: "인라인/본문 텍스트.",
+  TitleText: "강조 제목 텍스트 (`{{{+1 '''…'''}}}`).",
+  Image: "파일 이미지.",
+  Link: "문서·외부 링크.",
+  Comment: "위키 각주 `[* …]`.",
+  Space: "공백 한 칸.",
+  br: "`[br]` 줄바꿈.",
+  Box: "`{{{#!wiki style}}}` 박스.",
+  Row: "가로 flex 스택. `crossAxisAlignment` / `mainAxisAlignment` / `spacing`.",
+  Column:
+    "세로 flex 스택. `crossAxisAlignment` / `mainAxisAlignment` / `spacing`.",
+  Folding: "`{{{#!folding}}}` 접기.",
+  Heading:
+    "문단 제목. 루트=`==`, 중첩으로 깊이↑. 있으면 `[목차]`+`[clearfix]` 자동. 링크는 `toDocument`/`toExternal`.",
+  Quote: "위키 인용구 (`> …`). 자식: Text·Link·Image·br 등.",
+  Badge: "칩 스타일 Box sugar.",
+  script: "컴포넌트 props 맵.",
+  template: "마크업 루트.",
+};
+
+/** Built-in tag hover docs (요약 + 필수/택1/선택 구분). */
 export const TAG_DOCS: Record<string, string> = Object.fromEntries(
-  (
-    [
-      ["Table", "나무위키 표."],
-      ["TableRow", "표 행. 자식은 `TableColumn`만."],
-      ["TableColumn", "표 칸."],
-      ["Text", "인라인/본문 텍스트."],
-      ["TitleText", "강조 제목 텍스트 (`{{{+1 '''…'''}}}`)."],
-      ["Image", "파일 이미지."],
-      ["Link", "문서·외부 링크."],
-      ["Comment", "위키 각주 `[* …]`."],
-      ["Space", "공백 한 칸."],
-      ["br", "`[br]` 줄바꿈."],
-      ["Box", "`{{{#!wiki style}}}` 박스."],
-      [
-        "Row",
-        "가로 flex 스택. `crossAxisAlignment` / `mainAxisAlignment` / `spacing`.",
-      ],
-      [
-        "Column",
-        "세로 flex 스택. `crossAxisAlignment` / `mainAxisAlignment` / `spacing`.",
-      ],
-      ["Folding", "`{{{#!folding}}}` 접기."],
-      ["Heading", "`== … ==` 문단 제목."],
-      ["Badge", "칩 스타일 Box sugar."],
-      ["script", "컴포넌트 props 맵."],
-      ["template", "마크업 루트."],
-    ] as const
-  ).map(([tag, summary]) => {
-    const attrs = TAG_ATTRS[tag] ?? [];
-    const lines = attrs.map((a) => `- \`${a}\`: ${ATTR_DOCS[a] ?? ""}`);
-    const body = lines.length ? `${summary}\n\n${lines.join("\n")}` : summary;
-    return [tag, body];
-  })
+  Object.keys(TAG_SUMMARIES).map((tag) => [tag, formatTagDocs(tag)])
 );
 
 export const VALUE_SNIPPETS = [
@@ -214,6 +273,148 @@ export const VALUE_SNIPPETS = [
   ".step(1)",
   ".step(-2)",
 ];
+
+function orderedAttrNames(spec: Record<string, AttrReq>): string[] {
+  const required: string[] = [];
+  const oneOf: string[] = [];
+  const optional: string[] = [];
+  for (const [name, req] of Object.entries(spec)) {
+    if (req.kind === "required") required.push(name);
+    else if (req.kind === "oneOf") oneOf.push(name);
+    else optional.push(name);
+  }
+  return [...required, ...oneOf, ...optional];
+}
+
+export function attrReq(tag: string, attr: string): AttrReq | undefined {
+  return TAG_ATTR_SPEC[tag]?.[attr];
+}
+
+export function attrKindLabel(req: AttrReq): string {
+  if (req.kind === "required") return "(필수)";
+  if (req.kind === "oneOf") return `(택1:${req.group})`;
+  return "(선택)";
+}
+
+export function requiredAttrNames(tag: string): string[] {
+  const spec = TAG_ATTR_SPEC[tag];
+  if (!spec) return [];
+  return Object.entries(spec)
+    .filter(([, r]) => r.kind === "required")
+    .map(([n]) => n);
+}
+
+/**
+ * First attribute per oneOf group that must appear in tag snippets
+ * (required oneOf only — e.g. Link/Image, not optional Heading links).
+ */
+export function oneOfRepresentatives(tag: string): string[] {
+  const spec = TAG_ATTR_SPEC[tag];
+  if (!spec) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const [name, req] of Object.entries(spec)) {
+    if (req.kind !== "oneOf") continue;
+    if (req.required === false) continue;
+    if (seen.has(req.group)) continue;
+    seen.add(req.group);
+    out.push(name);
+  }
+  return out;
+}
+
+export type OneOfGroupInfo = { names: string[]; required: boolean };
+
+export function oneOfGroups(tag: string): Map<string, OneOfGroupInfo> {
+  const spec = TAG_ATTR_SPEC[tag];
+  const map = new Map<string, OneOfGroupInfo>();
+  if (!spec) return map;
+  for (const [name, req] of Object.entries(spec)) {
+    if (req.kind !== "oneOf") continue;
+    const cur = map.get(req.group) ?? {
+      names: [],
+      required: req.required !== false,
+    };
+    cur.names.push(name);
+    if (req.required === false) cur.required = false;
+    map.set(req.group, cur);
+  }
+  return map;
+}
+
+/**
+ * Snippet body after `<` for tag completion.
+ * Includes required attrs + one representative per oneOf group.
+ */
+export function tagCompletionSnippet(tag: string): string {
+  const req = requiredAttrNames(tag);
+  const reps = oneOfRepresentatives(tag);
+  const attrs = [...req, ...reps];
+  let tab = 1;
+  const parts = attrs.map((a) => `${a}="\${${tab++}}"`);
+  const voidish = ["br", "Space", "Image", "Link", "TitleText", "Badge"].includes(
+    tag
+  );
+  const selfClosingPreferred = [
+    "Heading",
+    "Text",
+    "Image",
+    "Link",
+    "TitleText",
+    "Comment",
+    "br",
+    "Space",
+    "Badge",
+  ].includes(tag);
+
+  if (tag === "Folding") {
+    return `Folding title="\${1:제목}">\n\t$0\n</Folding>`;
+  }
+  if (tag === "Quote") {
+    return `Quote>\n\t$0\n</Quote>`;
+  }
+  if (parts.length === 0) {
+    if (selfClosingPreferred || voidish) return `${tag} />`;
+    return `${tag}>$0</${tag}>`;
+  }
+  if (selfClosingPreferred || voidish) {
+    return `${tag} ${parts.join(" ")} />`;
+  }
+  return `${tag} ${parts.join(" ")}>\n\t$0\n</${tag}>`;
+}
+
+export function formatTagDocs(tag: string): string {
+  const summary = TAG_SUMMARIES[tag] ?? tag;
+  const spec = TAG_ATTR_SPEC[tag];
+  if (!spec || Object.keys(spec).length === 0) return summary;
+
+  const required: string[] = [];
+  const oneOfLines: string[] = [];
+  const optional: string[] = [];
+  const groups = oneOfGroups(tag);
+
+  for (const [name, req] of Object.entries(spec)) {
+    const doc = ATTR_DOCS[name] ?? "";
+    const line = `- \`${name}\`: ${doc}`;
+    if (req.kind === "required") required.push(line);
+    else if (req.kind === "optional") optional.push(line);
+  }
+  for (const [group, info] of groups) {
+    const need = info.required ? "정확히 하나" : "최대 하나";
+    oneOfLines.push(
+      `- **택1 \`${group}\`** (${need}): ${info.names.map((n) => `\`${n}\``).join(" | ")}`
+    );
+    for (const n of info.names) {
+      oneOfLines.push(`  - \`${n}\`: ${ATTR_DOCS[n] ?? ""}`);
+    }
+  }
+
+  const sections: string[] = [summary];
+  if (required.length) sections.push("### 필수\n" + required.join("\n"));
+  if (oneOfLines.length) sections.push("### 택1\n" + oneOfLines.join("\n"));
+  if (optional.length) sections.push("### 선택\n" + optional.join("\n"));
+  return sections.join("\n\n");
+}
 
 const KNOWN = new Set<string>(TAGS);
 

@@ -1,6 +1,12 @@
 import { spawn } from "child_process";
 import * as vscode from "vscode";
-import { closestTag, isKnownTag } from "./catalog";
+import {
+  closestTag,
+  isKnownTag,
+  oneOfGroups,
+  requiredAttrNames,
+  TAG_ATTR_SPEC,
+} from "./catalog";
 import { jsonImportDiagnostics } from "./jsonData";
 import { findWikiKitRoot } from "./paths";
 
@@ -60,6 +66,8 @@ export async function diagnose(doc: vscode.TextDocument): Promise<void> {
     d.source = "nwiki";
     diagnostics.push(d);
   }
+
+  diagnostics.push(...requiredAttrDiagnostics(doc));
 
   // Parser-backed diagnostics
   const parserDiags = await runParserDiagnostics(doc);
@@ -160,6 +168,64 @@ except Exception as e:
       finish([d]);
     });
   });
+}
+
+/** Missing required / oneOf attribute scan on open tags. */
+export function requiredAttrDiagnostics(
+  doc: vscode.TextDocument
+): vscode.Diagnostic[] {
+  const text = doc.getText();
+  const diags: vscode.Diagnostic[] = [];
+  // Match <Tag ...> or <Tag .../> (non-greedy attrs; skip </Tag>)
+  const re = /<(?!\/)([A-Za-z_][\w]*)\b([^>]*?)(\/?)\>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const tag = m[1];
+    if (!TAG_ATTR_SPEC[tag]) continue;
+    if (["script", "template"].includes(tag)) continue;
+    const attrBlob = m[2];
+    const present = new Set<string>();
+    const attrNameRe = /\b([A-Za-z_][\w]*)\s*=/g;
+    let am: RegExpExecArray | null;
+    while ((am = attrNameRe.exec(attrBlob))) {
+      present.add(am[1]);
+    }
+
+    const tagStart = doc.positionAt(m.index + 1);
+    const tagEnd = doc.positionAt(m.index + 1 + tag.length);
+    const range = new vscode.Range(tagStart, tagEnd);
+
+    for (const name of requiredAttrNames(tag)) {
+      if (present.has(name)) continue;
+      const d = new vscode.Diagnostic(
+        range,
+        `<${tag}> missing required attribute '${name}'`,
+        vscode.DiagnosticSeverity.Error
+      );
+      d.source = "nwiki";
+      d.code = "missing-required-attr";
+      diags.push(d);
+    }
+
+    for (const [group, info] of oneOfGroups(tag)) {
+      const hit = info.names.filter((n) => present.has(n));
+      if (hit.length === 1) continue;
+      if (hit.length === 0 && !info.required) continue;
+      const msg =
+        hit.length === 0
+          ? `<${tag}> requires one of: ${info.names.join(" | ")} (${group})`
+          : `<${tag}> use only one of: ${info.names.join(" | ")} (${group})`;
+      const d = new vscode.Diagnostic(
+        range,
+        msg,
+        vscode.DiagnosticSeverity.Error
+      );
+      d.source = "nwiki";
+      d.code = hit.length === 0 ? "missing-oneof-attr" : "conflict-oneof-attr";
+      diags.push(d);
+    }
+  }
+  return diags;
 }
 
 /** Names from top-level import(Ident) / import("Ident") — skips *.json data imports. */

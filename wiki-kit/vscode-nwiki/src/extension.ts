@@ -34,7 +34,8 @@ export function activate(context: vscode.ExtensionContext): void {
       "/",
       "=",
       ".",
-      '"'
+      '"',
+      " " // inside <Tag …> → unset attribute suggestions
     )
   );
 

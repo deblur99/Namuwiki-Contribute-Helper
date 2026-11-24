@@ -2,9 +2,12 @@ import * as vscode from "vscode";
 import {
   ATTR_DOCS,
   CALLS,
+  attrKindLabel,
+  attrReq,
   TAG_ATTRS,
   TAG_DOCS,
   TAGS,
+  tagCompletionSnippet,
   VALUE_SNIPPETS,
 } from "./catalog";
 import { collectImportedTags } from "./diagnostics";
@@ -22,12 +25,19 @@ import {
 export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
   provideCompletionItems(
     document: vscode.TextDocument,
-    position: vscode.Position
+    position: vscode.Position,
+    _token: vscode.CancellationToken,
+    context: vscode.CompletionContext
   ): vscode.CompletionItem[] {
     const line = document.lineAt(position).text;
     const prefix = line.slice(0, position.character);
     const items: vscode.CompletionItem[] = [];
     const jsonNs = loadJsonNamespaces(document);
+
+    // Space: only suggest unset attrs inside an open tag (not in strings / after =)
+    if (context.triggerCharacter === " ") {
+      return attributeCompletions(prefix) ?? [];
+    }
 
     // JSON data keys: ${designSystem. / designSystem.
     const jsonDot =
@@ -89,9 +99,10 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
       return enumStringItems(callArgEnums, true);
     }
 
-    // Tag name after <
+    // Tag name after < — insert required (+ oneOf representative) attrs
     const tagMatch = /<\/?([A-Za-z_]*)$/.exec(prefix);
     if (tagMatch) {
+      const isClose = /<\/[A-Za-z_]*$/.test(prefix);
       const tagNames = new Set<string>([
         ...TAGS,
         ...collectImportedTags(document.getText()),
@@ -101,7 +112,11 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
           t,
           vscode.CompletionItemKind.Class
         );
-        item.insertText = t;
+        if (isClose || !TAG_ATTRS[t]) {
+          item.insertText = t;
+        } else {
+          item.insertText = new vscode.SnippetString(tagCompletionSnippet(t));
+        }
         const doc =
           resolveDocsForSymbol(document, t) || TAG_DOCS[t] || undefined;
         if (doc) {
@@ -112,32 +127,9 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
       return items;
     }
 
-    // Attributes inside open tag
-    const openTag = findOpenTagName(prefix);
-    if (openTag && /=\s*$/.test(prefix) === false && !/["']$/.test(prefix)) {
-      const attrs = TAG_ATTRS[openTag] ?? [];
-      for (const a of attrs) {
-        const item = new vscode.CompletionItem(
-          a,
-          vscode.CompletionItemKind.Property
-        );
-        item.insertText = new vscode.SnippetString(`${a}=$0`);
-        if (ATTR_DOCS[a]) {
-          item.detail = ATTR_DOCS[a];
-          item.documentation = new vscode.MarkdownString(ATTR_DOCS[a]);
-        }
-        items.push(item);
-      }
-      items.push(
-        Object.assign(
-          new vscode.CompletionItem(
-            "delimiter",
-            vscode.CompletionItemKind.Property
-          ),
-          { detail: "not delimeter" }
-        )
-      );
-    }
+    // Attributes inside open tag (also after typing attr name prefix)
+    const attrItems = attributeCompletions(prefix);
+    if (attrItems) items.push(...attrItems);
 
     // After = suggest type constructors / value snippets (not global enum dump)
     if (/=\s*[\w]*$/.test(prefix) || /=\s*$/.test(prefix)) {
@@ -198,6 +190,13 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
         } else if (c === "category") {
           item.insertText = new vscode.SnippetString(
             'category("${1:분류}")'
+          );
+        } else if (c === "document") {
+          item.insertText = new vscode.SnippetString(
+            'document("${1:표제어}")'
+          );
+          item.documentation = new vscode.MarkdownString(
+            "현재 문서 표제어. `toDocument=\"./…\"` / `\"../…\"` 해석 기준."
           );
         } else {
           item.insertText = new vscode.SnippetString(`${c}("\${1}")`);
@@ -327,5 +326,80 @@ function findOpenTagName(prefix: string): string | undefined {
   const slice = prefix.slice(idx);
   if (slice.includes(">")) return undefined;
   const m = /^<\/?([A-Za-z_][\w-]*)/.exec(slice);
-  return m?.[1];
+  if (!m || slice.startsWith("</")) return undefined;
+  return m[1];
+}
+
+/** True if cursor is inside a "…" or '…' within the open tag. */
+function inOpenTagString(prefix: string): boolean {
+  const idx = prefix.lastIndexOf("<");
+  if (idx < 0) return false;
+  const slice = prefix.slice(idx);
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < slice.length; i++) {
+    const c = slice[i];
+    if (c === "\\" && quote) {
+      i++;
+      continue;
+    }
+    if (quote) {
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") quote = c;
+  }
+  return quote !== null;
+}
+
+function presentAttrsInOpenTag(prefix: string): Set<string> {
+  const idx = prefix.lastIndexOf("<");
+  if (idx < 0) return new Set();
+  const slice = prefix.slice(idx);
+  const present = new Set<string>();
+  const re = /\b([A-Za-z_][\w]*)\s*=/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(slice))) present.add(m[1]);
+  return present;
+}
+
+/**
+ * Unset attribute completions inside `<Tag …`.
+ * Skips when inside strings, after `=`, or not in an open tag.
+ */
+function attributeCompletions(
+  prefix: string
+): vscode.CompletionItem[] | undefined {
+  const openTag = findOpenTagName(prefix);
+  if (!openTag) return undefined;
+  if (inOpenTagString(prefix)) return undefined;
+  // After `=` (value position) — not attribute names
+  if (/=\s*[\w.]*$/.test(prefix) || /=\s*$/.test(prefix)) return undefined;
+  // Mid-identifier after partial attr name is OK: `title="x" col`
+  const attrs = TAG_ATTRS[openTag] ?? [];
+  if (!attrs.length) return undefined;
+
+  const present = presentAttrsInOpenTag(prefix);
+  const items: vscode.CompletionItem[] = [];
+  for (const a of attrs) {
+    if (present.has(a)) continue;
+    const item = new vscode.CompletionItem(
+      a,
+      vscode.CompletionItemKind.Property
+    );
+    item.insertText = new vscode.SnippetString(`${a}=$0`);
+    const req = attrReq(openTag, a);
+    const kind = req ? attrKindLabel(req) : "";
+    const docLine = ATTR_DOCS[a] ?? "";
+    item.detail = [kind, docLine].filter(Boolean).join(" ");
+    if (docLine) {
+      item.documentation = new vscode.MarkdownString(
+        `${kind} ${docLine}`.trim()
+      );
+    }
+    if (req?.kind === "required") item.sortText = `0_${a}`;
+    else if (req?.kind === "oneOf") item.sortText = `1_${a}`;
+    else item.sortText = `2_${a}`;
+    items.push(item);
+  }
+  return items;
 }

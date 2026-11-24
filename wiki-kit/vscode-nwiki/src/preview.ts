@@ -107,6 +107,15 @@ function wrapPreviewHtml(body: string, sourcePath: string): string {
     font-size: 12px;
     font-family: ui-monospace, monospace;
   }
+  nav.toc {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 10px 0;
+    font-size: 13px;
+  }
+  nav.toc .toc-hint { color: var(--muted); font-weight: 400; }
+  .clearfix { clear: both; height: 0; }
   table.wiki {
     border-collapse: collapse;
     margin: 10px 0;
@@ -143,6 +152,12 @@ function wrapPreviewHtml(body: string, sourcePath: string): string {
   .size-up { font-size: 1.15em; }
   .size-down { font-size: 0.85em; }
   img { max-width: 100%; height: auto; }
+  blockquote {
+    margin: 0.6em 0;
+    padding: 0.25em 0.75em;
+    border-left: 3px solid var(--muted);
+    color: var(--muted);
+  }
 </style>
 </head>
 <body>
@@ -157,7 +172,9 @@ export function namuwikiToApproxHtml(raw: string): string {
   let s = raw.replace(/\r\n/g, "\n");
   s = convertWikiBlocks(s);
   s = convertTables(s);
+  s = convertToc(s);
   s = convertHeadings(s);
+  s = convertQuotes(s);
   s = convertInline(s);
   // remaining bare newlines → <br> outside block tags is noisy; keep paragraphs
   s = s
@@ -261,6 +278,15 @@ function rowToHtml(line: string): string {
   return `<tr>${tds.join("")}</tr>`;
 }
 
+function convertToc(s: string): string {
+  return s
+    .replace(
+      /^\[목차\]\s*$/gm,
+      '<nav class="toc"><strong>목차</strong> <span class="toc-hint">(위키에서 문단으로 채움)</span></nav>'
+    )
+    .replace(/^\[clearfix\]\s*$/gm, '<div class="clearfix"></div>');
+}
+
 function convertHeadings(s: string): string {
   return s.replace(
     /^(={1,6})#?\s*(.+?)\s*#?\1\s*$/gm,
@@ -269,6 +295,29 @@ function convertHeadings(s: string): string {
       return `<h${level}>${title}</h${level}>`;
     }
   );
+}
+
+/** Consecutive `> …` lines → one blockquote (namuwiki 인용구). */
+function convertQuotes(s: string): string {
+  const lines = s.split("\n");
+  const out: string[] = [];
+  let buf: string[] = [];
+  const flush = () => {
+    if (!buf.length) return;
+    const inner = buf.map((l) => l.replace(/^>\s?/, "")).join("<br>\n");
+    out.push(`<blockquote>${inner}</blockquote>`);
+    buf = [];
+  };
+  for (const line of lines) {
+    if (/^>\s?/.test(line)) {
+      buf.push(line);
+    } else {
+      flush();
+      out.push(line);
+    }
+  }
+  flush();
+  return out.join("\n");
 }
 
 function convertInline(s: string): string {

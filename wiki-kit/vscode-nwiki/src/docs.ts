@@ -14,7 +14,7 @@ import { findWikiKitRoot } from "./paths";
 const DOC_LINE = /^([ \t]*)\/\/\/[ \t]?(.*)$/;
 const TAG_OPEN = /^[ \t]*<\/?([A-Za-z_][\w-]*)/;
 const TYPE_DECL = /^[ \t]*(?:struct|enum|func)\s+([A-Za-z_][\w]*)/;
-const BODY_START = /^[ \t]*(?:<script\b|<template\b|category\s*\(|include(?:Frame)?\s*\(|import\s*\()/i;
+const BODY_START = /^[ \t]*(?:<script\b|<template\b|document\s*\(|category\s*\(|include(?:Frame)?\s*\(|import\s*\()/i;
 
 export interface DocIndex {
   /** symbol → markdown body (joined /// lines) */

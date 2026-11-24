@@ -34,18 +34,23 @@
   },
   "Text": {
     "prefix": "tx",
-    "body": "<Text text=\"${1:text}\"$2 />",
-    "description": "Text element"
+    "body": "<Text text=\"${1}\" />",
+    "description": "Text (required: text)"
   },
   "Link": {
     "prefix": "lk",
-    "body": "<Link toDocument=\"${1:문서}\" label=\"${2:표시}\" />",
-    "description": "Link to document"
+    "body": "<Link toDocument=\"${1}\" />",
+    "description": "Link (택1: toDocument | toExternal)"
   },
-  "Image": {
-    "prefix": "img",
-    "body": "<Image fileName=\"${1:file.png}\" width=LayoutLength(${2:100}$3) />",
-    "description": "Image"
+  "Link labeled": {
+    "prefix": "lkl",
+    "body": "<Link toDocument=\"${1}\" label=\"${2:표시}\" />",
+    "description": "Link with different display label"
+  },
+  "document": {
+    "prefix": "doc",
+    "body": "document(\"${1:표제어}\")",
+    "description": "Current wiki document title for ./ ../ toDocument"
   },
   "Comment": {
     "prefix": "cmt",
@@ -143,24 +148,44 @@
     ],
     "description": "Column (flex column, Flutter-tone axes)"
   },
-  "Folding": {
-    "prefix": "fold",
-    "body": [
-      "<Folding title=\"${1:제목}\">",
-      "\t$0",
-      "</Folding>"
-    ],
-    "description": "Folding block"
-  },
   "Heading": {
     "prefix": "hd",
-    "body": "<Heading level=${1:2} title=\"${2:제목}\" />",
-    "description": "Wiki paragraph heading (== … ==)"
+    "body": "<Heading title=\"${1}\" />",
+    "description": "Heading (required: title)"
   },
   "Heading collapsed": {
     "prefix": "hdc",
-    "body": "<Heading level=${1:2} title=\"${2:제목}\" collapsed=true />",
+    "body": "<Heading title=\"${1}\" collapsed=true />",
     "description": "Collapsed paragraph heading (==# … #==)"
+  },
+  "Heading linked": {
+    "prefix": "hdl",
+    "body": "<Heading title=\"${1}\" toDocument=\"${2:./하위}\" />",
+    "description": "Heading with optional toDocument"
+  },
+  "Image": {
+    "prefix": "img",
+    "body": "<Image fileName=\"${1}\" />",
+    "description": "Image (택1: fileName | src)"
+  },
+  "Folding": {
+    "prefix": "fold",
+    "body": [
+      "<Folding title=\"${1}\">",
+      "\t$0",
+      "</Folding>"
+    ],
+    "description": "Folding (required: title)"
+  },
+  "Quote": {
+    "prefix": "quote",
+    "body": [
+      "<Quote>",
+      "\t<Text text=\"${1:인용구}\" weight=.bold />",
+      "$0",
+      "</Quote>"
+    ],
+    "description": "Namuwiki blockquote (> …)"
   },
   "Badge": {
     "prefix": "badge",
