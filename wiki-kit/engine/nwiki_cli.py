@@ -12,6 +12,26 @@ from .nwiki.pipeline import build_nwiki, parse_nwiki_file
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def project_root_for(nwiki_path: Path) -> Path | None:
+    """Walk parents for nwiki.json — document project root."""
+    cur = nwiki_path.resolve().parent
+    for _ in range(8):
+        if (cur / "nwiki.json").is_file():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    return None
+
+
+def output_dir_for(nwiki_path: Path) -> Path:
+    """Prefer {project}/outputs when nwiki.json exists; else wiki-kit/outputs."""
+    proj = project_root_for(nwiki_path)
+    if proj is not None:
+        return proj / "outputs"
+    return ROOT / "outputs"
+
+
 def cmd_nwiki_build(args: argparse.Namespace) -> int:
     target = Path(args.path)
     if not target.is_file():
@@ -22,18 +42,22 @@ def cmd_nwiki_build(args: argparse.Namespace) -> int:
         else:
             print(f"file not found: {args.path}", file=sys.stderr)
             return 1
+    target = target.resolve()
     try:
         markup = build_nwiki(target)
     except NwikiError as exc:
         print(f"nwiki error: {exc}", file=sys.stderr)
         return 1
 
-    out_dir = ROOT / "outputs"
-    out_dir.mkdir(exist_ok=True)
+    out_dir = output_dir_for(target)
+    out_dir.mkdir(parents=True, exist_ok=True)
     dest_name = args.output or f"{target.stem}.md"
     dest = out_dir / dest_name
     dest.write_text(markup + ("\n" if not markup.endswith("\n") else ""), encoding="utf-8")
-    print(f"wrote outputs/{dest.name}")
+    try:
+        print(f"wrote {dest.relative_to(Path.cwd())}")
+    except ValueError:
+        print(f"wrote {dest}")
 
     if args.check_golden:
         golden = ROOT / "fixtures" / f"{target.stem}.golden.md"
@@ -66,7 +90,7 @@ def cmd_nwiki_parse(args: argparse.Namespace) -> int:
         return 1
     print(f"path={doc.path}")
     print(f"stmts={[(s.name, s.args) for s in doc.stmts]}")
-    print(f"props={doc.script_props}")
+    print(f"prop_decls={list(doc.prop_decls)}")
     print(f"template_roots={[e.name for e in doc.template]}")
     return 0
 

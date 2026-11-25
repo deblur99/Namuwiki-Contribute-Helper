@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from .ast import CallStmt, Document, Element, EnumRef
+from .ast import CallStmt, Document, Element, EnumRef, PropDecl
 from .errors import NwikiError
 from .expr import (
     parse_attr_value,
@@ -17,29 +17,70 @@ from .expr import (
 
 
 def strip_comments(source: str) -> str:
-    """Remove /* */, <!-- -->, and /// doc-comment lines (non-greedy, non-nested)."""
+    """Remove /* */, <!-- -->, /// doc lines, and // line comments (non-nested).
+
+    Strings (\"…\" / '…') are left intact so URLs like http:// survive.
+    /// is stripped as a whole line before // matching.
+    """
     out: list[str] = []
     i = 0
-    while i < len(source):
-        # /// doc line: optional indent, then /// … to EOL (not inside /* */)
-        if _at_line_start(source, i) and _is_doc_comment_line(source, i):
-            while i < len(source) and source[i] != "\n":
-                i += 1
-            # drop the line; keep newline so surrounding layout stays similar
+    n = len(source)
+    in_dq = False
+    in_sq = False
+    while i < n:
+        ch = source[i]
+
+        if in_dq:
+            out.append(ch)
+            if ch == '"' and (i == 0 or source[i - 1] != "\\"):
+                in_dq = False
+            i += 1
             continue
+        if in_sq:
+            out.append(ch)
+            if ch == "'" and (i == 0 or source[i - 1] != "\\"):
+                in_sq = False
+            i += 1
+            continue
+
+        if ch == '"':
+            in_dq = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "'":
+            in_sq = True
+            out.append(ch)
+            i += 1
+            continue
+
+        if _at_line_start(source, i) and _is_doc_comment_line(source, i):
+            while i < n and source[i] != "\n":
+                i += 1
+            continue
+
         if source.startswith("/*", i):
             end = source.find("*/", i + 2)
             if end < 0:
                 raise NwikiError("unterminated /* comment", index=i)
             i = end + 2
             continue
+
         if source.startswith("<!--", i):
             end = source.find("-->", i + 4)
             if end < 0:
                 raise NwikiError("unterminated <!-- comment", index=i)
             i = end + 3
             continue
-        out.append(source[i])
+
+        # // line comment (not /// — already handled). Require start or whitespace.
+        if source.startswith("//", i) and not source.startswith("///", i):
+            if i == 0 or source[i - 1] in " \t\n":
+                while i < n and source[i] != "\n":
+                    i += 1
+                continue
+
+        out.append(ch)
         i += 1
     return "".join(out)
 
@@ -55,23 +96,79 @@ def _is_doc_comment_line(source: str, i: int) -> bool:
     return source.startswith("///", j)
 
 
-_SCRIPT = re.compile(r"<script>(.*?)</script>", re.DOTALL | re.IGNORECASE)
 _TEMPLATE = re.compile(r"<template>(.*?)</template>", re.DOTALL | re.IGNORECASE)
+_SCRIPT_OPEN = re.compile(r"<script\b", re.IGNORECASE)
 _CALL_HEAD = re.compile(
-    r"\b(category|include|includeFrame|import|document)\s*\("
+    r"\b(category|include|includeFrame|import|document|frame)\s*\("
 )
-_PROP_ENTRY = re.compile(r'"([^"]+)"\s*:\s*"([^"]*)"')
+_IMPORT_FROM = re.compile(
+    r"\bimport\s+([A-Za-z_][\w]*)\s+from\s+"
+)
+_EXTENSION_REJECT = re.compile(r"\bextension\b")
+_PROPS_BLOCK = re.compile(
+    r"\bprops\s*\{([^{}]*)\}",
+    re.DOTALL,
+)
 
 
-def parse_script_props(body: str) -> dict[str, str]:
-    return {m.group(1): m.group(2) for m in _PROP_ENTRY.finditer(body)}
+def reject_extension(cleaned: str) -> None:
+    """extension was removed — tokens live in JSON via import … from."""
+    blocked = _blocked_ranges(cleaned)
+    for m in _EXTENSION_REJECT.finditer(cleaned):
+        if _in_blocked(m.start(), blocked):
+            continue
+        raise NwikiError(
+            "extension is removed; put keys in a .json file and "
+            'use import Name from "….json"',
+            index=m.start(),
+        )
+
+
+def parse_props_block(cleaned: str) -> dict[str, PropDecl]:
+    """Parse top-level `props { name: String, subtitle: String? }`."""
+    blocked = _blocked_ranges(cleaned)
+    decls: dict[str, PropDecl] = {}
+    for m in _PROPS_BLOCK.finditer(cleaned):
+        if _in_blocked(m.start(), blocked):
+            continue
+        block = m.group(1)
+        i = 0
+        while True:
+            i = skip_ws(block, i)
+            if i >= len(block):
+                break
+            name, i = parse_ident(block, i)
+            i = skip_ws(block, i)
+            if i >= len(block) or block[i] != ":":
+                raise NwikiError(
+                    f"expected ':' after prop {name}",
+                    index=m.start(1) + i,
+                )
+            i += 1
+            i = skip_ws(block, i)
+            type_name, i = parse_ident(block, i)
+            optional = False
+            if i < len(block) and block[i] == "?":
+                optional = True
+                i += 1
+            if name in decls:
+                raise NwikiError(f"duplicate prop declaration {name!r}")
+            decls[name] = PropDecl(
+                name=name, type_name=type_name, optional=optional
+            )
+            i = skip_ws(block, i)
+            if i < len(block) and block[i] == ",":
+                i += 1
+                continue
+            if i < len(block) and block[i] == ";":
+                i += 1
+    return decls
 
 
 def _blocked_ranges(cleaned: str) -> list[tuple[int, int]]:
     ranges: list[tuple[int, int]] = []
-    for rx in (_SCRIPT, _TEMPLATE):
-        for m in rx.finditer(cleaned):
-            ranges.append((m.start(), m.end()))
+    for m in _TEMPLATE.finditer(cleaned):
+        ranges.append((m.start(), m.end()))
     return ranges
 
 
@@ -79,8 +176,35 @@ def _in_blocked(pos: int, ranges: list[tuple[int, int]]) -> bool:
     return any(a <= pos < b for a, b in ranges)
 
 
+def parse_import_from_stmts(cleaned: str) -> list[CallStmt]:
+    """Parse `import Name from \"path\"` outside <template>."""
+    blocked = _blocked_ranges(cleaned)
+    stmts: list[CallStmt] = []
+    i = 0
+    while True:
+        m = _IMPORT_FROM.search(cleaned, i)
+        if not m:
+            break
+        if _in_blocked(m.start(), blocked):
+            i = m.end()
+            continue
+        binding = m.group(1)
+        j = skip_ws(cleaned, m.end())
+        if j >= len(cleaned) or cleaned[j] not in "\"'":
+            raise NwikiError(
+                'expected string path after import … from',
+                index=j,
+            )
+        path, j = parse_string(cleaned, j)
+        stmts.append(
+            CallStmt(name="import", args=[path], kwargs={"as": binding})
+        )
+        i = j
+    return stmts
+
+
 def parse_top_level_calls(cleaned: str) -> list[CallStmt]:
-    """Parse category/include/includeFrame/import outside script/template."""
+    """Parse category/include/…/import(…) call form outside <template>."""
     blocked = _blocked_ranges(cleaned)
     stmts: list[CallStmt] = []
     i = 0
@@ -91,11 +215,15 @@ def parse_top_level_calls(cleaned: str) -> list[CallStmt]:
         if _in_blocked(m.start(), blocked):
             i = m.end()
             continue
+        # Skip `import Name from` — handled by parse_import_from_stmts
+        if m.group(1) == "import":
+            before = cleaned[m.start() : m.end()]
+            # import( — OK; but if this match is somehow from-form, skip
+            pass
         name = m.group(1)
         paren = m.end() - 1
         call, j = parse_call_args(cleaned, paren, name)
         args = list(call.args)
-        # import(ProfileTable) → bare ident becomes EnumRef
         if name == "import" and len(args) == 1 and isinstance(args[0], EnumRef):
             args = [args[0].name]
         stmts.append(CallStmt(name=name, args=args, kwargs=dict(call.kwargs)))
@@ -107,24 +235,31 @@ def parse_document(source: str, *, path: str | None = None) -> Document:
     from .docpath import bind_document_name
 
     cleaned = strip_comments(source)
-    doc = Document(path=path)
-    doc.stmts = parse_top_level_calls(cleaned)
 
-    sm = _SCRIPT.search(cleaned)
+    sm = _SCRIPT_OPEN.search(cleaned)
     if sm:
-        script_body = sm.group(1)
-        doc.script_props = parse_script_props(script_body)
-        # import / category / include / document inside <script> (same as top-level)
-        doc.stmts.extend(parse_top_level_calls(script_body))
+        raise NwikiError(
+            "<script> is removed; use top-level import/props and <template>",
+            index=sm.start(),
+        )
 
     tm = _TEMPLATE.search(cleaned)
-    if tm:
-        body = tm.group(1).strip()
-        elements, idx = parse_element_list(body, 0)
-        idx = skip_ws(body, idx)
-        if idx < len(body):
-            raise NwikiError("trailing content in <template>", index=idx)
-        doc.template = elements
+    if not tm:
+        raise NwikiError("missing required <template>…</template>")
+
+    reject_extension(cleaned)
+
+    doc = Document(path=path)
+    doc.stmts = parse_import_from_stmts(cleaned)
+    doc.stmts.extend(parse_top_level_calls(cleaned))
+    doc.prop_decls = parse_props_block(cleaned)
+
+    body = tm.group(1).strip()
+    elements, idx = parse_element_list(body, 0)
+    idx = skip_ws(body, idx)
+    if idx < len(body):
+        raise NwikiError("trailing content in <template>", index=idx)
+    doc.template = elements
 
     bind_document_name(doc)
     return doc
@@ -152,12 +287,10 @@ def parse_element(s: str, i: int) -> tuple[Element, int]:
     if i < len(s) and s[i] == "/":
         raise NwikiError("unexpected close tag", index=i)
 
-    # br / Space specials without attrs often
     name, i = _parse_tag_name(s, i)
     attrs: dict = {}
     i = skip_ws(s, i)
     while i < len(s) and s[i] not in "/>":
-        # attr name
         if not (s[i].isalpha() or s[i] == "_"):
             raise NwikiError("expected attribute name", index=i)
         key_start = i
@@ -182,7 +315,6 @@ def parse_element(s: str, i: int) -> tuple[Element, int]:
 
     if i < len(s) and s[i] == ">":
         i += 1
-        # void-ish br
         if name.lower() == "br":
             return Element(name="br", attrs=attrs, children=[], self_closing=True), i
         children, i = parse_element_list(s, i)

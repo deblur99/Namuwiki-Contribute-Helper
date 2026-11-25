@@ -1,22 +1,22 @@
 /*
-JSON import("….json") 예제 — stem 네임스페이스로 ${designSystem.key} 주입
+JSON import DesignSystem from "….json" — ${DesignSystem.key}
 */
-import("./data/designSystem.json")
+import DesignSystem from "./data/design-system.json"
 
 <template>
   <Table
     width=LayoutLength(500)
     align=.right
-    borderColor=HexColor("${designSystem.accentColor}")
-    bgColor=HexColor(light="${designSystem.white}", dark="#1C1D1F")>
+    borderColor=HexColor("${DesignSystem.accentColor}")
+    bgColor=HexColor(light="${DesignSystem.white}", dark="#1C1D1F")>
     <TableRow>
-      <TableColumn colSpan=2 bgColor=HexColor("${designSystem.accentColor}")>
+      <TableColumn colSpan=2 bgColor=HexColor("${DesignSystem.accentColor}")>
         <TitleText text="데이터 주입" />
       </TableColumn>
     </TableRow>
     <TableRow>
       <TableColumn colSpan=2 nopad=true>
-        <Image fileName="${designSystem.profileImage}" width=LayoutLength(100, .percent) />
+        <Image fileName="${DesignSystem.profileImage}" width=LayoutLength(100, .percent) />
       </TableColumn>
     </TableRow>
   </Table>

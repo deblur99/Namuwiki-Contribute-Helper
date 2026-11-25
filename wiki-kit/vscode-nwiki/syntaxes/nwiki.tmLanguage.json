@@ -4,6 +4,7 @@
   "scopeName": "source.nwiki",
   "patterns": [
     { "include": "#doc-comment" },
+    { "include": "#line-comment" },
     { "include": "#block-comment" },
     { "include": "#html-comment" },
     { "include": "#script-block" },
@@ -16,6 +17,10 @@
     "doc-comment": {
       "name": "comment.line.documentation.nwiki",
       "match": "^[ \\t]*///.*$"
+    },
+    "line-comment": {
+      "name": "comment.line.double-slash.nwiki",
+      "match": "(?<!:)//(?!/).*$"
     },
     "block-comment": {
       "name": "comment.block.nwiki",
@@ -58,6 +63,8 @@
         "3": { "name": "punctuation.definition.tag.end.nwiki" }
       },
       "patterns": [
+        { "include": "#html-comment" },
+        { "include": "#doc-comment" },
         { "include": "#tags" },
         { "include": "#strings" },
         { "include": "#interpolation" }

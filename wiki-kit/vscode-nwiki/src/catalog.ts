@@ -12,13 +12,10 @@ export const TAGS = [
   "Space",
   "br",
   "Box",
-  "Row",
-  "Column",
   "Folding",
   "Heading",
   "Quote",
   "Badge",
-  "script",
   "template",
 ] as const;
 
@@ -59,6 +56,7 @@ export const TAG_ATTR_SPEC: Record<string, Record<string, AttrReq>> = {
   },
   TitleText: {
     text: { kind: "required" },
+    color: { kind: "optional" },
   },
   Image: {
     fileName: { kind: "oneOf", group: "imageSrc" },
@@ -78,6 +76,11 @@ export const TAG_ATTR_SPEC: Record<string, Record<string, AttrReq>> = {
   br: {},
   Box: Object.fromEntries(
     [
+      "display",
+      "flexDirection",
+      "justifyContent",
+      "alignItems",
+      "gap",
       "width",
       "maxWidth",
       "minWidth",
@@ -92,51 +95,7 @@ export const TAG_ATTR_SPEC: Record<string, Record<string, AttrReq>> = {
       "borderRadius",
       "bgColor",
       "background",
-      "color",
       "opacity",
-      "display",
-      "alignItems",
-      "justifyContent",
-      "flexDirection",
-      "textAlign",
-      "wordBreak",
-      "fontSize",
-      "fontFamily",
-      "styleExtra",
-    ].map((a) => [a, { kind: "optional" as const }])
-  ),
-  Row: Object.fromEntries(
-    [
-      "crossAxisAlignment",
-      "mainAxisAlignment",
-      "spacing",
-      "inline",
-      "width",
-      "maxWidth",
-      "minWidth",
-      "height",
-      "margin",
-      "padding",
-      "bgColor",
-      "color",
-      "textAlign",
-      "styleExtra",
-    ].map((a) => [a, { kind: "optional" as const }])
-  ),
-  Column: Object.fromEntries(
-    [
-      "crossAxisAlignment",
-      "mainAxisAlignment",
-      "spacing",
-      "width",
-      "maxWidth",
-      "minWidth",
-      "height",
-      "margin",
-      "padding",
-      "bgColor",
-      "color",
-      "textAlign",
       "styleExtra",
     ].map((a) => [a, { kind: "optional" as const }])
   ),
@@ -167,6 +126,7 @@ export const TAG_ATTRS: Record<string, string[]> = Object.fromEntries(
 
 export const CALLS = [
   "document",
+  "frame",
   "category",
   "include",
   "includeFrame",
@@ -181,12 +141,6 @@ export const ATTR_DOCS: Record<string, string> = {
   minWidth: "최소 가로 (`LayoutLength` / CSS min-width).",
   align: "표 자체 위치 (`.left` / `.center` / `.right`). 내부 텍스트 정렬 아님.",
   alignment: "셀·텍스트 정렬 (TableColumn `<:>` / Text 등).",
-  crossAxisAlignment:
-    "Row/Column 교차축 (`align-items`). 기본 `.center`.",
-  mainAxisAlignment:
-    "Row/Column 주축 (`justify-content`). `.start` / `.center` / `.spaceBetween` 등.",
-  spacing: "Row/Column 주축 간격 (`gap`, px 숫자).",
-  inline: "`true`면 Row를 `inline-flex`로 (위키 인라인 배치).",
   borderColor: "표 테두리 색 (`HexColor`).",
   bgColor: "배경색 (`HexColor` / light·dark).",
   background: "배경 페인트 (`HexColor` / `RgbaColor` / Gradient).",
@@ -196,8 +150,9 @@ export const ATTR_DOCS: Record<string, string> = {
   nopad: "`true`면 셀 패딩 제거.",
   text: "표시할 문자열 (보간 `${…}` 가능).",
   size: "글자 크기 (`TextSize` / `.step(n)`).",
-  weight: "글자 굵기 (`.bold` / `.regular` 등).",
-  decoration: "밑줄·취소선 등 (`.underline` / `.line-through`).",
+  weight: "글자 굵기 (`.bold` / `.regular` 등). `.bold`만 `'''…'''`.",
+  decoration:
+    "`[TextDecoration]` — `.italic`→`''…''` / `.underline`→`__…__` / `.line-through`→`--…--`. 복수 예: `[.line-through, .italic]`.",
   fileName: "위키 파일명 (업로드된 이미지).",
   src: "이미지 URL/경로 (fileName 대안).",
   toDocument:
@@ -213,10 +168,12 @@ export const ATTR_DOCS: Record<string, string> = {
   borderLeft: "왼변 테두리 (`Border`).",
   borderRadius: "모서리 둥글기 (길이 / CSS).",
   opacity: "불투명도 0…1 (CSS opacity).",
-  display: "표시 방식 (`.block` / `.flex` / `.inlineBlock` 등).",
-  alignItems: "교차축 정렬 (flex).",
-  justifyContent: "주축 정렬 (flex).",
-  flexDirection: "flex 방향 (`.row` / `.column`).",
+  display:
+    "표시 방식. 생략 시 `.flex`. (`.block` / `.inline` / `.inlineBlock` / `.inlineFlex` / `.flex`).",
+  flexDirection: "flex 방향. flex일 때 생략 시 `.column`. (`.row` / `.column`).",
+  justifyContent: "주축 정렬 (flex, `.flexStart` / `.center` / …).",
+  alignItems: "교차축 정렬 (flex, `.stretch` / `.center` / …).",
+  gap: "자식 간격 (px 숫자 / `LayoutLength`). flex일 때만.",
   textAlign: "텍스트 정렬 (`.left` / `.center` / `.right` / `.justify`).",
   wordBreak: "줄바꿈 규칙 (`.keepAll` / `.breakAll`).",
   fontSize: "CSS font-size (`TextSize` 등).",
@@ -237,10 +194,7 @@ const TAG_SUMMARIES: Record<string, string> = {
   Comment: "위키 각주 `[* …]`.",
   Space: "공백 한 칸.",
   br: "`[br]` 줄바꿈.",
-  Box: "`{{{#!wiki style}}}` 박스.",
-  Row: "가로 flex 스택. `crossAxisAlignment` / `mainAxisAlignment` / `spacing`.",
-  Column:
-    "세로 flex 스택. `crossAxisAlignment` / `mainAxisAlignment` / `spacing`.",
+  Box: "`{{{#!wiki style}}}` 레이아웃 박스. 기본 flex+column·`gap`. 전경·텍스트 스타일(`color`/`textAlign`/…)은 Text·TitleText 등 자식에.",
   Folding: "`{{{#!folding}}}` 접기.",
   Heading:
     "문단 제목. 루트=`==`, 중첩으로 깊이↑. 있으면 `[목차]`+`[clearfix]` 자동. 링크는 `toDocument`/`toExternal`.",

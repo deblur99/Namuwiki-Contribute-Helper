@@ -51,18 +51,26 @@ class Element:
 
 @dataclass
 class CallStmt:
-    name: str  # category | include | includeFrame | import
+    name: str  # category | include | includeFrame | import | document | frame
     args: list[Any] = field(default_factory=list)  # str | EnumRef | CallExpr
     kwargs: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class PropDecl:
+    """Component prop from top-level `props { name: String }`."""
+
+    name: str
+    type_name: str
+    optional: bool = False
 
 
 @dataclass
 class Document:
     path: str | None = None
     stmts: list[CallStmt] = field(default_factory=list)
-    script_props: dict[str, str] = field(default_factory=dict)
     template: list[Element] = field(default_factory=list)
-    # stem → flat string map from import("….json")
+    # binding name → flat string map from JSON import
     data_namespaces: dict[str, dict[str, str]] = field(default_factory=dict)
-    # from document("표제어") — current wiki document title
     document_name: str | None = None
+    prop_decls: dict[str, PropDecl] = field(default_factory=dict)

@@ -19,14 +19,48 @@ category("경희대학교 출신")
 includeFrame("김마리(가수)")
 
 <!-- 프로필 표 템플릿 -->
-import(ProfileTable)
+import ProfileTable from "../components/ProfileTable.nwiki"
 
 <template>
   <ProfileTable name="김마리" />
-  <Heading toDocument="./음반 목록" title="음반" />
-  <Heading toDocument="./공연 목록" title="공연" />
+  <Heading toDocument="./음반 목록" title="음반">
+    <Heading toDocument="./공연 목록" title="공연" />
+  </Heading>
   <Heading toDocument="./응원법" title="응원법" />
-  <Heading title="여담" />
+  <Heading title="여담">
+    <Quote>
+
+    </Quote>
+
+    <Box
+      display=.flex
+      flexDirection=.row
+      justifyContent=.spaceBetween
+      alignItems=.center
+      gap=12
+      padding=Spacing(vertical: 5, horizontal: 10)>
+      <Text
+        text="'말랑해'는 '마리 사랑해' 를 줄여 불이는 애칭이다."
+        weight=.medium
+        decoration=[.italic, .line-through]
+      />
+      <Text
+        text="'말랑해'는 '마리 사랑해' 를 줄여 불이는 애칭이다."
+        weight=.medium
+        decoration=[.italic, .line-through]
+      />
+      <Text
+        text="'말랑해'는 '마리 사랑해' 를 줄여 불이는 애칭이다."
+        weight=.medium
+        decoration=[.italic, .line-through]
+      />
+      <Text
+        text="'말랑해'는 '마리 사랑해' 를 줄여 불이는 애칭이다."
+        weight=.medium
+        decoration=[.italic, .line-through]
+      />
+    </Box>
+  </Heading>
 </template>
 
 /* 이후 개요·여담 등 추가 내용... */

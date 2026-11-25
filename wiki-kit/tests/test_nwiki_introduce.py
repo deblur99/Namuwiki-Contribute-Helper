@@ -41,10 +41,44 @@ class IntroduceGoldenTest(unittest.TestCase):
         self.assertTrue(any(e.name == "Table" for e in resolved.template))
         self.assertFalse(any(e.name == "ProfileTable" for e in resolved.template))
 
-    def test_profile_table_standalone_script_props(self) -> None:
-        markup = build_nwiki(ROOT / "examples" / "ProfileTable.nwiki")
+    def test_profile_table_props_from_callsite(self) -> None:
+        markup = build_nwiki(ROOT / "examples" / "introduce.nwiki")
         self.assertIn("{{{+1 '''김마리'''}}}", markup)
         self.assertNotIn("props.name", markup)
+
+    def test_title_text_color(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+
+        doc = parse_document(
+            """
+<template>
+  <TitleText text="김마리" color=HexColor("#fff") />
+  <TitleText text="듀얼" color=HexColor(light="#8e8e8e", dark="#ffffff") />
+</template>
+"""
+        )
+        out = render_document(doc)
+        self.assertIn("{{{#fff {{{+1 '''김마리'''}}}}}", out)
+        self.assertIn("{{{#8e8e8e,#ffffff {{{+1 '''듀얼'''}}}}}", out)
+
+    def test_text_size_and_color_nested(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+
+        doc = parse_document(
+            """
+<template>
+  <Text text="김마리" size=.step(1) color=HexColor("#ffffff") />
+  <Text text="관련 문서" size=.step(-1) weight=.bold color=HexColor("#fff") />
+</template>
+"""
+        )
+        out = render_document(doc)
+        self.assertIn("{{{#ffffff {{{+1 김마리}}}}}", out)
+        self.assertIn("{{{#fff {{{-1 '''관련 문서'''}}}}}", out)
+        self.assertNotIn("{{{+1 #ffffff", out)
+        self.assertNotIn("{{{-1 #fff", out)
 
     def test_include_frame_sugar(self) -> None:
         from engine.nwiki.parser import parse_document
@@ -52,6 +86,7 @@ class IntroduceGoldenTest(unittest.TestCase):
 
         doc = parse_document(
             'includeFrame("접근 제한")\nincludeFrame("틀:이미있음")\ninclude("기타")\n'
+            "<template></template>\n"
         )
         out = render_document(doc)
         self.assertIn("[include(틀:접근 제한)]", out)
@@ -86,15 +121,45 @@ class IntroduceGoldenTest(unittest.TestCase):
         self.assertIn("[목차]", out)
         self.assertIn("== x ==", out)
 
+    def test_line_comment_strip(self) -> None:
+        from engine.nwiki.parser import parse_document, strip_comments
+        from engine.nwiki.render import render_document
+
+        src = (
+            "// file header note\n"
+            'includeFrame(.adult) // trailing\n'
+            '/// keep-as-doc-then-strip\n'
+            "<template>\n"
+            '  <!-- html note -->\n'
+            '  <Heading title="http://example.com/x" />\n'
+            '  <Text text="a // not comment" />\n'
+            "</template>\n"
+        )
+        cleaned = strip_comments(src)
+        self.assertNotIn("file header note", cleaned)
+        self.assertNotIn("trailing", cleaned)
+        self.assertNotIn("keep-as-doc", cleaned)
+        self.assertNotIn("html note", cleaned)
+        self.assertIn("http://example.com/x", cleaned)
+        self.assertIn("a // not comment", cleaned)
+        out = render_document(parse_document(src))
+        self.assertIn("[include(틀:선정성)]", out)
+        self.assertIn("http://example.com/x", out)
+        self.assertIn("a // not comment", out)
+
     def test_common_frame_associated_and_flat(self) -> None:
         from engine.nwiki.parser import parse_document
         from engine.nwiki.render import render_document
 
         a = render_document(
-            parse_document('includeFrame(.discussion("표제어"))\n')
+            parse_document(
+                'includeFrame(.discussion("표제어"))\n<template></template>\n'
+            )
         )
         b = render_document(
-            parse_document('includeFrame(.discussion, "표제어")\n')
+            parse_document(
+                'includeFrame(.discussion, "표제어")\n<template></template>\n'
+            )
         )
         self.assertEqual(a, b)
         self.assertIn("[include(틀:토론 중, 토론사유=표제어)]", a)
@@ -309,6 +374,58 @@ document("김마리(가수)/음반 목록")
         self.assertIn("> 첫 줄[br]둘째", out)
         self.assertIn("> [[가수|문서]] 본문", out)
 
+    def test_bold_text_leading_apostrophe(self) -> None:
+        """Bold wraps with '''…''' even when text starts/ends with '."""
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+
+        doc = parse_document(
+            """
+<template>
+  <Quote>
+    <Text text="'말랑해'는 애칭이다." weight=.bold />
+  </Quote>
+  <Text text="끝'" weight=.bold />
+</template>
+"""
+        )
+        out = render_document(doc)
+        self.assertIn("> ''''말랑해'는 애칭이다.'''", out)
+        self.assertIn("'''끝''''", out)
+        self.assertNotIn("&#39;", out)
+
+    def test_text_italic_and_decoration(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+
+        doc = parse_document(
+            """
+<template>
+  <Quote>
+    <Text text="밑줄" decoration=[.underline] />
+  </Quote>
+  <Quote>
+    <Text text="기울임" decoration=[.italic] />
+  </Quote>
+  <Quote>
+    <Text text="굵기울" weight=.bold decoration=[.italic] />
+  </Quote>
+  <Quote>
+    <Text text="취소기울" decoration=[.line-through, .italic] />
+  </Quote>
+  <Text text="취소" decoration=[.line-through] />
+  <Text text="둘다" decoration=[.underline, .line-through] />
+</template>
+"""
+        )
+        out = render_document(doc)
+        self.assertIn("> __밑줄__", out)
+        self.assertIn("> ''기울임''", out)
+        self.assertIn("> ''' ''굵기울'' '''", out)
+        self.assertIn("> --''취소기울''--", out)
+        self.assertIn("--취소--", out)
+        self.assertIn("--__둘다__--", out)
+
     def test_opacity_and_gradients(self) -> None:
         from engine.nwiki.parser import parse_document
         from engine.nwiki.render import render_document
@@ -378,35 +495,85 @@ document("김마리(가수)/음반 목록")
         from engine.nwiki.resolve import resolve_document
 
         doc = parse_document(
-            'import("./data/designSystem.json")\n'
-            '<template><Text text="${designSystem.nope}" /></template>\n',
+            'import DesignSystem from "./data/design-system.json"\n'
+            '<template><Text text="${DesignSystem.nope}" /></template>\n',
             path=str(ROOT / "examples" / "with_data.nwiki"),
         )
         with self.assertRaises(NwikiError) as ctx:
             resolve_document(doc)
         self.assertIn("unknown data key", str(ctx.exception))
 
-    def test_json_import_inside_script(self) -> None:
+    def test_json_import_named_from(self) -> None:
         from engine.nwiki.parser import parse_document
         from engine.nwiki.resolve import resolve_document
+        from engine.nwiki.render import render_document
 
         doc = parse_document(
-            '<script>\n'
-            '  import("./data/designSystem.json")\n'
-            "</script>\n"
+            'import DesignSystem from "./data/design-system.json"\n'
             "<template>\n"
-            '  <Text text="${designSystem.accentColor}" />\n'
+            '  <Text text="${DesignSystem.accentColor}" />\n'
             "</template>\n",
             path=str(ROOT / "examples" / "with_data.nwiki"),
         )
         resolved = resolve_document(doc)
         self.assertEqual(
-            resolved.data_namespaces["designSystem"]["accentColor"], "#87CEEB"
+            resolved.data_namespaces["DesignSystem"]["accentColor"], "#87CEEB"
         )
-        from engine.nwiki.render import render_document
-
         out = render_document(resolved)
         self.assertIn("#87CEEB", out)
+
+    def test_script_rejected(self) -> None:
+        from engine.nwiki.parser import parse_document
+
+        with self.assertRaises(NwikiError) as ctx:
+            parse_document(
+                "<script></script>\n<template><Text text=\"x\" /></template>\n"
+            )
+        self.assertIn("<script>", str(ctx.exception))
+
+    def test_props_required_and_unknown(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.resolve import resolve_document
+
+        comp = ROOT / "examples" / "_tmp_props_comp.nwiki"
+        comp.write_text(
+            "props {\n  name: String\n}\n"
+            "<template><Text text=\"${props.name}\" /></template>\n",
+            encoding="utf-8",
+        )
+        self.addCleanup(lambda: comp.unlink(missing_ok=True))
+        page = (
+            f'import Comp from "./{comp.name}"\n'
+            "<template><Comp /></template>\n"
+        )
+        doc = parse_document(page, path=str(ROOT / "examples" / "introduce.nwiki"))
+        with self.assertRaises(NwikiError) as ctx:
+            resolve_document(doc)
+        self.assertIn("missing required prop", str(ctx.exception))
+
+        page2 = (
+            f'import Comp from "./{comp.name}"\n'
+            '<template><Comp name="a" extra="b" /></template>\n'
+        )
+        doc2 = parse_document(page2, path=str(ROOT / "examples" / "introduce.nwiki"))
+        with self.assertRaises(NwikiError) as ctx2:
+            resolve_document(doc2)
+        self.assertIn("unknown prop", str(ctx2.exception))
+
+        # Component file alone: declared props must not raise unknown prop.
+        standalone = parse_document(
+            comp.read_text(encoding="utf-8"), path=str(comp)
+        )
+        resolve_document(standalone)
+
+        bad = parse_document(
+            "props {\n  name: String\n}\n"
+            '<template><Text text="${props.missing}" /></template>\n',
+            path=str(comp),
+        )
+        with self.assertRaises(NwikiError) as ctx3:
+            resolve_document(bad)
+        self.assertIn("unknown prop", str(ctx3.exception))
 
     def test_kimmarie_frame_json_in_script(self) -> None:
         frame = (
@@ -414,32 +581,81 @@ document("김마리(가수)/음반 목록")
         ).resolve()
         if not frame.is_file():
             self.skipTest("김마리/components/Frame.nwiki not present")
+        from engine.nwiki.parser import parse_file
+
+        parsed = parse_file(str(frame))
+        self.assertEqual(parsed.document_name, "틀:김마리(가수)")
         out = build_nwiki(frame)
         self.assertIn("#87ceeb", out.lower())
         self.assertIn("<:>", out)
-        self.assertIn("inline-flex", out)
-        self.assertIn("align-items: center", out)
-        self.assertIn("margin: -5px -10px", out)
+        self.assertIn("flex-direction: column", out)
+        self.assertIn("<#ddd,#222>", out)
+        self.assertIn("{{{#ffffff {{{+1 '''김마리'''}}}}}", out)
+        self.assertIn("{{{#ffffff {{{-1 '''관련 문서'''}}}}}", out)
 
-    def test_row_column_stack_sugar(self) -> None:
+    def test_frame_sugar_and_design_system_defaults(self) -> None:
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.resolve import resolve_document
+        from engine.nwiki.render import render_document
+
+        doc = parse_document(
+            'frame("테스트틀")\n'
+            'import DesignSystem from "./data/design-system.json"\n'
+            "<template>\n"
+            '  <Text text="a" color=DesignSystem.defaultColor />\n'
+            "  <Text text=\"b\" color=.hex(#abc) />\n"
+            "  <Text text=\"c\" color=HexColor.white />\n"
+            '  <Box background=DesignSystem.defaultBgColor>\n'
+            '    <Text text="d" />\n'
+            "  </Box>\n"
+            "</template>\n",
+            path=str(ROOT / "examples" / "with_data.nwiki"),
+        )
+        self.assertEqual(doc.document_name, "틀:테스트틀")
+        resolved = resolve_document(doc)
+        ds = resolved.data_namespaces["DesignSystem"]
+        self.assertEqual(ds["defaultColor"], "#222,#ddd")
+        self.assertEqual(ds["defaultBgColor"], "#ddd,#222")
+        self.assertEqual(ds["accentColor"], "#87CEEB")
+        self.assertIn("DesignSystem", resolved.data_namespaces)
+        out = render_document(resolved)
+        self.assertIn("{{{#222,#ddd a}}}", out)
+        self.assertIn("{{{#abc b}}}", out)
+        self.assertIn("{{{#fff c}}}", out)
+        self.assertIn("background: #ddd,#222", out)
+
+    def test_extension_rejected(self) -> None:
+        from engine.nwiki.parser import parse_document
+
+        with self.assertRaises(NwikiError) as ctx:
+            parse_document(
+                "extension DesignSystem {\n"
+                "  static let x = HexColor(#fff)\n"
+                "}\n"
+                '<template><Text text="x" /></template>\n'
+            )
+        self.assertIn("extension is removed", str(ctx.exception))
+
+    def test_box_flex_defaults_and_gap(self) -> None:
         from engine.nwiki.parser import parse_document
         from engine.nwiki.render import render_document
 
         doc = parse_document(
             "<template>\n"
-            "  <Row inline=true crossAxisAlignment=.center spacing=4>\n"
+            "  <Box display=.inlineFlex flexDirection=.row alignItems=.center gap=4>\n"
             '    <Text text="A" />\n'
             '    <Text text="B" />\n'
-            "  </Row>\n"
-            "  <Column crossAxisAlignment=.start mainAxisAlignment=.center>\n"
+            "  </Box>\n"
+            "  <Box justifyContent=.center alignItems=.flexStart>\n"
             '    <Text text="C" />\n'
-            "  </Column>\n"
+            "  </Box>\n"
             "</template>\n"
         )
         out = render_document(doc)
         self.assertIn("display: inline-flex", out)
         self.assertIn("flex-direction: row", out)
         self.assertIn("gap: 4px", out)
+        self.assertIn("display: flex", out)
         self.assertIn("flex-direction: column", out)
         self.assertIn("align-items: flex-start", out)
         self.assertIn("justify-content: center", out)

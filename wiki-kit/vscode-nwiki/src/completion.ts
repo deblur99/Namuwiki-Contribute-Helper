@@ -10,11 +10,28 @@ import {
   tagCompletionSnippet,
   VALUE_SNIPPETS,
 } from "./catalog";
+import {
+  ATTR_LIST_ATTRS,
+  attrEnumQuery,
+  attrTypeMemberQuery,
+  callKwargValueEnumQuery,
+  findOpenTagName,
+  inAttrValuePosition,
+  inOpenTagString,
+  openCallFromText,
+  openTagFullFromText,
+  openTagPrefixFromText,
+  presentAttrsInOpenTag,
+  unsetCallKwargs,
+} from "./completionContext";
+import {
+  componentPropCompletions,
+  loadImportedComponentProps,
+} from "./componentProps";
 import { collectImportedTags } from "./diagnostics";
 import { resolveDocsForSymbol } from "./docs";
 import { jsonKeyCompletions, loadJsonNamespaces } from "./jsonData";
 import {
-  ATTR_ENUMS,
   COMMON_FRAME_MEMBERS,
   KNOWN_TYPE_NAMES,
   TYPE_DOCS,
@@ -30,55 +47,88 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
     context: vscode.CompletionContext
   ): vscode.CompletionItem[] {
     const line = document.lineAt(position).text;
-    const prefix = line.slice(0, position.character);
+    const linePrefix = line.slice(0, position.character);
+    const offset = document.offsetAt(position);
+    const docText = document.getText();
+    const tagPrefix = openTagPrefixFromText(docText, offset) ?? undefined;
+    const tagFull = openTagFullFromText(docText, offset) ?? undefined;
     const items: vscode.CompletionItem[] = [];
     const jsonNs = loadJsonNamespaces(document);
+    const compProps = loadImportedComponentProps(document);
 
-    // Space: only suggest unset attrs inside an open tag (not in strings / after =)
+    const call = openCallFromText(docText, offset);
+
+    // Space: constructor kwargs (Spacing/Border/…) first, else unset tag attrs
     if (context.triggerCharacter === " ") {
-      return attributeCompletions(prefix) ?? [];
+      if (call) {
+        return callKwargCompletions(call) ?? [];
+      }
+      const openName = findOpenTagName(tagFull ?? tagPrefix ?? linePrefix);
+      if (openName && compProps.has(openName)) {
+        const present = presentAttrsInOpenTag(tagFull ?? tagPrefix ?? linePrefix);
+        return componentPropCompletions(
+          compProps.get(openName)!,
+          present
+        );
+      }
+      return (
+        attributeCompletions(tagPrefix ?? linePrefix, tagFull) ?? []
+      );
+    }
+
+    // Prefer tag-scoped prefix for attr/enum; else current line
+    const prefix = tagPrefix ?? linePrefix;
+
+    // Inside Spacing(… / Border(… — label value enums (vertical: .auto)
+    if (call) {
+      const cq = callKwargValueEnumQuery(call);
+      if (cq) return enumStringItems(cq.values, cq.afterDot);
+      const kw = callKwargCompletions(call);
+      if (kw?.length && /[A-Za-z_]$/.test(call.inside)) return kw;
     }
 
     // JSON data keys: ${designSystem. / designSystem.
     const jsonDot =
-      /(?:\$\{)?([A-Za-z_][\w]*)\.\w*$/.exec(prefix) ||
-      /(?:\$\{)?([A-Za-z_][\w]*)\.$/.exec(prefix);
+      /(?:\$\{)?([A-Za-z_][\w]*)\.\w*$/.exec(linePrefix) ||
+      /(?:\$\{)?([A-Za-z_][\w]*)\.$/.exec(linePrefix);
     if (jsonDot && jsonNs.has(jsonDot[1])) {
       return jsonKeyCompletions(jsonNs, jsonDot[1]);
     }
 
     // 1) includeFrame( / include( + `.` → CommonFrame
-    if (/\b(?:includeFrame|include)\s*\(\s*\.?[\w]*$/.test(prefix)) {
+    if (/\b(?:includeFrame|include)\s*\(\s*\.?[\w]*$/.test(linePrefix)) {
       return memberItems(COMMON_FRAME_MEMBERS, {
-        replaceDot: /\.\w*$/.test(prefix),
+        replaceDot: /\.\w*$/.test(linePrefix),
       });
     }
 
-    // 3) Type. → init / static
-    const typeDot = /([A-Za-z_][\w]*)\.\w*$/.exec(prefix);
+    // 3) Type. → init / method / prop / enum
+    const typeDot = /([A-Za-z_][\w]*)\.\w*$/.exec(linePrefix);
     if (typeDot && KNOWN_TYPE_NAMES.includes(typeDot[1])) {
       const info = TYPE_MEMBERS[typeDot[1]];
-      const staticish = info.members.filter(
+      const members = info.members.filter(
         (m) =>
           m.kind === "init" ||
-          m.kind === "staticMethod" ||
-          m.kind === "staticProp" ||
+          m.kind === "method" ||
+          m.kind === "prop" ||
           m.kind === "enum"
       );
-      return memberItems(staticish, {
+      return memberItems(members, {
         forTypeDot: typeDot[1],
         replaceDot: true,
       });
     }
 
-    // 4) Value/call behind `.` → instance (HexColor("#fff"). / LayoutLength(1).)
+    // 4) Value/call behind `.` → prop / method (HexColor("#fff"). / LayoutLength(1).)
     const instDot =
-      /(?:([A-Za-z_][\w]*)\s*\([^)]*\)|"[^"]*"|'[^']*'|\))\.\w*$/.exec(prefix);
+      /(?:([A-Za-z_][\w]*)\s*\([^)]*\)|"[^"]*"|'[^']*'|\))\.\w*$/.exec(
+        linePrefix
+      );
     if (instDot) {
-      const typeName = inferReceiverType(prefix);
+      const typeName = inferReceiverType(linePrefix);
       if (typeName && TYPE_MEMBERS[typeName]) {
         const inst = TYPE_MEMBERS[typeName].members.filter(
-          (m) => m.kind === "instanceProp" || m.kind === "instanceMethod"
+          (m) => m.kind === "prop" || m.kind === "method"
         );
         if (inst.length) {
           return memberItems(inst, { replaceDot: true });
@@ -87,22 +137,31 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
       return [];
     }
 
-    // 2) attr= `.` → expected enum for that attribute
-    const attrEq = /([A-Za-z_][\w]*)\s*=\s*\.?[\w]*$/.exec(prefix);
-    if (attrEq && ATTR_ENUMS[attrEq[1]]) {
-      return enumStringItems(ATTR_ENUMS[attrEq[1]], /\.\w*$/.test(prefix));
+    // 2) attr= `.` / attr=[… . → ATTR_ENUMS (list + scalar; hyphen ok)
+    const enumQ = attrEnumQuery(prefix);
+    if (enumQ) {
+      return enumStringItems(enumQ.values, enumQ.afterDot);
+    }
+
+    // 2b) attr=. → typed static/enum members (size=. → TextSize.step)
+    const typeMemQ = attrTypeMemberQuery(prefix);
+    if (typeMemQ) {
+      return memberItems(typeMemQ.members, {
+        forTypeDot: typeMemQ.typeName,
+        replaceDot: true,
+      });
     }
 
     // Call-arg `.` heuristics: LayoutLength(n, . / LinearGradient(. / Border(… style: .
-    const callArgEnums = callArgEnumSuggestions(prefix);
+    const callArgEnums = callArgEnumSuggestions(linePrefix);
     if (callArgEnums) {
       return enumStringItems(callArgEnums, true);
     }
 
     // Tag name after < — insert required (+ oneOf representative) attrs
-    const tagMatch = /<\/?([A-Za-z_]*)$/.exec(prefix);
+    const tagMatch = /<\/?([A-Za-z_]*)$/.exec(linePrefix);
     if (tagMatch) {
-      const isClose = /<\/[A-Za-z_]*$/.test(prefix);
+      const isClose = /<\/[A-Za-z_]*$/.test(linePrefix);
       const tagNames = new Set<string>([
         ...TAGS,
         ...collectImportedTags(document.getText()),
@@ -128,16 +187,21 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
     }
 
     // Attributes inside open tag (also after typing attr name prefix)
-    const attrItems = attributeCompletions(prefix);
+    const attrItems = attributeCompletions(prefix, tagFull);
     if (attrItems) items.push(...attrItems);
+    const openComp = findOpenTagName(tagFull ?? prefix);
+    if (openComp && compProps.has(openComp)) {
+      const present = presentAttrsInOpenTag(tagFull ?? prefix);
+      items.push(
+        ...componentPropCompletions(compProps.get(openComp)!, present)
+      );
+    }
 
     // After = suggest type constructors / value snippets (not global enum dump)
     if (/=\s*[\w]*$/.test(prefix) || /=\s*$/.test(prefix)) {
-      const attrName = /([A-Za-z_][\w]*)\s*=\s*[\w]*$/.exec(prefix)?.[1];
-      if (attrName && ATTR_ENUMS[attrName]) {
-        items.push(
-          ...enumStringItems(ATTR_ENUMS[attrName], /\.\w*$/.test(prefix))
-        );
+      const again = attrEnumQuery(prefix);
+      if (again) {
+        items.push(...enumStringItems(again.values, again.afterDot));
       }
       for (const v of VALUE_SNIPPETS) {
         const item = new vscode.CompletionItem(
@@ -165,7 +229,7 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
     }
 
     // Top-level calls
-    const trimmed = prefix.trimStart();
+    const trimmed = linePrefix.trimStart();
     if (/^[a-zA-Z]*$/.test(trimmed)) {
       for (const c of CALLS) {
         const item = new vscode.CompletionItem(
@@ -174,10 +238,10 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
         );
         if (c === "import") {
           item.insertText = new vscode.SnippetString(
-            "import(${1|ProfileTable,\"../data/designSystem.json\"|})"
+            'import ${1:DesignSystem} from "${2:./data/design-system.json}"'
           );
           item.documentation = new vscode.MarkdownString(
-            "컴포넌트 `import(Name)` 또는 JSON `import(\"….json\")` → `${stem.key}`"
+            '`import Name from "path"` — `.json` → 네임스페이스, `.nwiki` → 컴포넌트 태그'
           );
         } else if (c === "includeFrame") {
           item.insertText = new vscode.SnippetString(
@@ -193,10 +257,17 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
           );
         } else if (c === "document") {
           item.insertText = new vscode.SnippetString(
-            'document("${1:표제어}")'
+            'document("${1:문서명}")'
           );
           item.documentation = new vscode.MarkdownString(
-            "현재 문서 표제어. `toDocument=\"./…\"` / `\"../…\"` 해석 기준."
+            "현재 문서명. `toDocument=\"./…\"` / `\"../…\"` 해석 기준."
+          );
+        } else if (c === "frame") {
+          item.insertText = new vscode.SnippetString(
+            'frame("${1:틀제목}")'
+          );
+          item.documentation = new vscode.MarkdownString(
+            '`frame("이름")` = `document("틀:이름")`. 둘러보기 틀 파일용.'
           );
         } else {
           item.insertText = new vscode.SnippetString(`${c}("\${1}")`);
@@ -225,7 +296,7 @@ function memberToItem(
       ? vscode.CompletionItemKind.EnumMember
       : m.kind === "init"
         ? vscode.CompletionItemKind.Constructor
-        : m.kind === "staticMethod" || m.kind === "instanceMethod"
+        : m.kind === "method"
           ? vscode.CompletionItemKind.Method
           : vscode.CompletionItemKind.Property;
 
@@ -285,7 +356,6 @@ function inferReceiverType(prefix: string): string | undefined {
 
 function callArgEnumSuggestions(prefix: string): string[] | undefined {
   if (!/\.\w*$/.test(prefix) && !/\(\s*$/.test(prefix) && !/,\s*$/.test(prefix)) {
-    // only when typing `.` or empty after ( / ,
     if (!/\.\w*$/.test(prefix)) return undefined;
   }
   if (!/\.\w*$/.test(prefix)) return undefined;
@@ -320,65 +390,41 @@ function callArgEnumSuggestions(prefix: string): string[] | undefined {
   return undefined;
 }
 
-function findOpenTagName(prefix: string): string | undefined {
-  const idx = prefix.lastIndexOf("<");
-  if (idx < 0) return undefined;
-  const slice = prefix.slice(idx);
-  if (slice.includes(">")) return undefined;
-  const m = /^<\/?([A-Za-z_][\w-]*)/.exec(slice);
-  if (!m || slice.startsWith("</")) return undefined;
-  return m[1];
-}
-
-/** True if cursor is inside a "…" or '…' within the open tag. */
-function inOpenTagString(prefix: string): boolean {
-  const idx = prefix.lastIndexOf("<");
-  if (idx < 0) return false;
-  const slice = prefix.slice(idx);
-  let quote: '"' | "'" | null = null;
-  for (let i = 0; i < slice.length; i++) {
-    const c = slice[i];
-    if (c === "\\" && quote) {
-      i++;
-      continue;
-    }
-    if (quote) {
-      if (c === quote) quote = null;
-      continue;
-    }
-    if (c === '"' || c === "'") quote = c;
-  }
-  return quote !== null;
-}
-
-function presentAttrsInOpenTag(prefix: string): Set<string> {
-  const idx = prefix.lastIndexOf("<");
-  if (idx < 0) return new Set();
-  const slice = prefix.slice(idx);
-  const present = new Set<string>();
-  const re = /\b([A-Za-z_][\w]*)\s*=/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(slice))) present.add(m[1]);
-  return present;
+function callKwargCompletions(
+  call: NonNullable<ReturnType<typeof openCallFromText>>
+): vscode.CompletionItem[] | undefined {
+  const labels = unsetCallKwargs(call);
+  if (!labels?.length) return undefined;
+  return labels.map((label) => {
+    const item = new vscode.CompletionItem(
+      label,
+      vscode.CompletionItemKind.Property
+    );
+    item.insertText = new vscode.SnippetString(`${label}: $0`);
+    item.detail = `${call.name}(…) kwarg`;
+    item.sortText = `0_${label}`;
+    return item;
+  });
 }
 
 /**
  * Unset attribute completions inside `<Tag …`.
  * Skips when inside strings, after `=`, or not in an open tag.
+ * `tagFull` (entire `<Tag…>`) excludes attrs that appear after the cursor.
  */
 function attributeCompletions(
-  prefix: string
+  prefix: string,
+  tagFull?: string
 ): vscode.CompletionItem[] | undefined {
   const openTag = findOpenTagName(prefix);
   if (!openTag) return undefined;
   if (inOpenTagString(prefix)) return undefined;
-  // After `=` (value position) — not attribute names
-  if (/=\s*[\w.]*$/.test(prefix) || /=\s*$/.test(prefix)) return undefined;
-  // Mid-identifier after partial attr name is OK: `title="x" col`
+  if (inAttrValuePosition(prefix)) return undefined;
+
   const attrs = TAG_ATTRS[openTag] ?? [];
   if (!attrs.length) return undefined;
 
-  const present = presentAttrsInOpenTag(prefix);
+  const present = presentAttrsInOpenTag(tagFull ?? prefix);
   const items: vscode.CompletionItem[] = [];
   for (const a of attrs) {
     if (present.has(a)) continue;
@@ -386,7 +432,8 @@ function attributeCompletions(
       a,
       vscode.CompletionItemKind.Property
     );
-    item.insertText = new vscode.SnippetString(`${a}=$0`);
+    const snip = ATTR_LIST_ATTRS.has(a) ? `${a}=[$0]` : `${a}=$0`;
+    item.insertText = new vscode.SnippetString(snip);
     const req = attrReq(openTag, a);
     const kind = req ? attrKindLabel(req) : "";
     const docLine = ATTR_DOCS[a] ?? "";

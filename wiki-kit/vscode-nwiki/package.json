@@ -20,7 +20,12 @@
     "onCommand:nwiki.previewOutput",
     "onCommand:nwiki.formatDocument",
     "onCommand:nwiki.formatTagMultiline",
-    "onCommand:nwiki.showDiagnosticHelp"
+    "onCommand:nwiki.showDiagnosticHelp",
+    "onCommand:nwiki.newDocument",
+    "onCommand:nwiki.insertFrameTemplate",
+    "onCommand:nwiki.insertProfileTableTemplate",
+    "onCommand:nwiki.insertArticleTemplate",
+    "onCommand:nwiki.openSpecGuide"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -51,6 +56,34 @@
       }
     ],
     "commands": [
+      {
+        "command": "nwiki.newDocument",
+        "title": "nwiki: New Document"
+      },
+      {
+        "command": "nwiki.newComponent",
+        "title": "nwiki: New Component"
+      },
+      {
+        "command": "nwiki.createMissingJson",
+        "title": "nwiki: Create Missing JSON"
+      },
+      {
+        "command": "nwiki.insertFrameTemplate",
+        "title": "nwiki: Insert Frame Template"
+      },
+      {
+        "command": "nwiki.insertProfileTableTemplate",
+        "title": "nwiki: Insert ProfileTable Template"
+      },
+      {
+        "command": "nwiki.insertArticleTemplate",
+        "title": "nwiki: Insert Article Template"
+      },
+      {
+        "command": "nwiki.openSpecGuide",
+        "title": "nwiki: Open Spec Guide"
+      },
       {
         "command": "nwiki.build",
         "title": "nwiki: Build File"
@@ -166,7 +199,8 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
+    "sync-runtime": "node ./scripts/sync-runtime.mjs",
+    "compile": "tsc -p ./ && npm run sync-runtime",
     "watch": "tsc -watch -p ./",
     "install:local": "npm run compile && node ./scripts/install-local.mjs",
     "uninstall:local": "node ./scripts/uninstall-local.mjs",

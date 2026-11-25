@@ -37,18 +37,20 @@
             case rgb3(r: UInt4, g: UInt4, b: UInt4)   // #RGB
             case rgb6(r: UInt8, g: UInt8, b: UInt8)   // #RRGGBB
         }
-        var light: Kind
-        var dark: Kind  // 단일 인자 init이면 light == dark
+        let light: Kind
+        let dark: Kind  // 단일 인자 init이면 light == dark
 
         init?(_ color: String) { /* parse → Kind; light = dark */ }
-        init?(light: String, dark: String) { … }
+        init?(light: String, dark: String) { … }  // bare #222 리터럴 허용
+        let white, black, transparent  // HexColor.white 등 (예약 프리셋)
 
-        var wikiValue: String {
+        let wikiValue: String {
             // rgb3 → "#abc" / rgb6 → "#aabbcc"
             // light≠dark 이면 "light,dark"
             return result
         }
     }
+    // 페인트 sugar: .hex(#RGB|#RRGGBB) / DesignSystem.key / "#…" 문자열
 
     /// CSS rgba() — 나무위키 wiki style / 그라데이션 투명도에 사용
     struct RgbaColor {
@@ -132,6 +134,9 @@
 
     - 기본 속성은 크게 5가지이며 나머지는 추후 확장될 수 있음
     - 혹은 미리 지정한 Typography 타입이 있다면 그걸 통째로 넘기는 것도 가능함
+    - decoration은 `[TextDecoration]` (복수 동시 적용). 예: `decoration=[.line-through, .italic]`
+    - weight=.bold → `'''…'''` / .italic → `''…''` / .underline → `__…__` / .line-through → `--…--`
+    - size=.step(n) → `{{{+n …}}}` / color → `{{{#hex …}}}` (지시자당 `{{{}}}` 하나; 동시 적용 시 중첩: `{{{#hex {{{+n …}}}}}`)
     
     텍스트 관련 속성은 아래와 같다.
 
@@ -175,9 +180,10 @@
 
     3) TextDecoration
     // - none도 있으나 optional 문법이 있기 때문에 그냥 안 넘기거나, nil로 넘기면 된다.
+    // - 속성은 항상 [TextDecoration] (한 개여도 배열). 예: decoration=[.underline] / decoration=[.line-through, .italic]
     enum TextDecoration {
+        case italic
         case underline
-        case overline
         case line-through
     }
 
@@ -199,11 +205,16 @@
 <!-- 텍스트 파생 컴포넌트 -->
 /*
     1) 타이틀
-    <TitleText text="김마리" />
+    <TitleText text=String color=HexColor|RgbaColor? />
 
-    - TitleText에 기본 적용된 Text 속성은 다음과 같다.
+    - 기본: size +1 · weight bold → `{{{+1 '''…'''}}}`
+    - color 있으면 중첩: `{{{#… {{{+1 '''…'''}}}}}` (라이트·다크는 `#light,#dark`)
 
-    <Text text="" size=.step(1) color=HexColor(light="#8e8e8e", dark="#ffffff"), weight=.bold />
+    예:
+    <TitleText text="김마리" color=HexColor("#fff") />
+    → {{{#fff {{{+1 '''김마리'''}}}}}
+    <TitleText text="김마리" color=HexColor(light="#8e8e8e", dark="#ffffff") />
+    → {{{#8e8e8e,#ffffff {{{+1 '''김마리'''}}}}}
 */
 
 
@@ -236,7 +247,7 @@
         }
 
         /// percent일 때 0...100, point일 때 length > 0 검증. 실패 시 빌드 에러.
-        var wikiValue: String {
+        let wikiValue: String {
             // .point   → "100"
             // .percent → "100%"
             return result
@@ -432,87 +443,57 @@
     한 겹의 wiki style 블록 = Box 하나. 바깥→안쪽으로 중첩.
 
     <Box
+      display=BoxDisplay?
+      flexDirection=FlexDirection?
+      justifyContent=FlexJustify?
+      alignItems=FlexAlign?
+      gap=Float|LayoutLength?
       width=LayoutLength? maxWidth=LayoutLength? minWidth=LayoutLength? height=LayoutLength?
       margin=Spacing? padding=Spacing?
       border=Border? borderTop=Border? borderRight=Border? borderBottom=Border? borderLeft=Border?
       borderRadius=CornerRadius?
       bgColor=HexColor|RgbaColor?
       background=LinearGradient|RadialGradient|RepeatingLinearGradient|[Gradient…]?
-      color=HexColor|RgbaColor?
       opacity=Float?   // 0...1 → opacity: N
-      display=BoxDisplay?
-      alignItems=FlexAlign? justifyContent=FlexJustify? flexDirection=FlexDirection?
-      textAlign=TextAlignment? wordBreak=WordBreak?
-      fontSize=String? fontFamily=String?
       styleExtra=String?
     > … </Box>
 
+    - 기본값: display 생략 → .flex / flex일 때 flexDirection 생략 → .column
+    - 자식 간격: gap 만 (숫자 → Npx). padding/margin 은 Spacing 그대로.
+    - 속성 권장 순서: display → flexDirection → justifyContent → alignItems → gap → …
+    - Box는 레이아웃·박스 모델만. color / textAlign / wordBreak / fontSize / fontFamily 금지
+      → Text·TitleText 등 자식에서 지정.
     - bgColor 만: background: <solid>
     - background 만: background: <gradient…>
     - 둘 다: background-color: <solid>; background: <gradient…>
     - background 배열이면 쉼표로 레이어 중첩 (앞이 위)
+    - 인라인 flex: display=.inlineFlex (구 Row inline=true 대체)
+    - Row / Column 태그 없음 — Box 만 사용.
 
     enum BoxDisplay { case block, inline, inlineBlock, inlineFlex, flex }
     // CSS: inline-block / inline-flex
     enum FlexAlign { case center, flexStart, flexEnd, stretch, baseline }
-    enum FlexJustify { case center, flexStart, flexEnd, spaceBetween, spaceAround }
+    enum FlexJustify { case center, flexStart, flexEnd, spaceBetween, spaceAround, spaceEvenly }
     enum FlexDirection { case row, column }
-    enum WordBreak { case keepAll, breakAll, normal }
 
     검증
-    - alignItems / justifyContent / flexDirection 은 display=.flex 또는 .inlineFlex 일 때만.
+    - alignItems / justifyContent / flexDirection / gap 은 display=.flex 또는 .inlineFlex 일 때만.
+    - color / textAlign / wordBreak / fontSize / fontFamily 가 있으면 빌드 에러.
     - opacity 는 0...1.
     - CSS 길이: LayoutLength point → Npx, percent → N%.
+
+    예:
+    <Box display=.inlineFlex flexDirection=.row alignItems=.center gap=4>
+      <Image fileName="로고.png" width=LayoutLength(100) />
+      <Box display=.flex flexDirection=.column alignItems=.flexStart>
+        <TitleText text="김마리" color=HexColor("#fff") />
+        <Text text="관련 문서" size=.step(-1) weight=.bold color=HexColor("#fff") />
+      </Box>
+    </Box>
 
     Divider
     - 1차: 별도 컴포넌트 없음. Box의 borderBottom / borderRight 로 표현.
     - 2차 설탕(추후): <Divider /> → 얇은 가로 border Box.
-*/
-
-<!-- Row / Column (Compose 태그명 + Flutter식 축 정렬) -->
-/*
-    TableRow/TableColumn 과 맞춘 레이아웃 프리미티브.
-    내부: Box(display=.flex | .inlineFlex, flexDirection=…) 로 낮춤.
-    정렬 API는 읽기 쉬운 Flutter 톤 (축 이름이 속성에 드러남).
-
-    <Row
-      crossAxisAlignment=CrossAxisAlignment?
-      mainAxisAlignment=MainAxisAlignment?
-      spacing=Float?
-      inline=Bool?
-      …BoxAttrs>
-      …가로 자식…
-    </Row>
-
-    <Column
-      crossAxisAlignment=CrossAxisAlignment?
-      mainAxisAlignment=MainAxisAlignment?
-      spacing=Float?
-      …BoxAttrs>
-      …세로 자식…
-    </Column>
-
-    - Row: flex-direction row. inline=true → display: inline-flex (기본 flex).
-    - Column: flex-direction column (항상 flex).
-    - crossAxisAlignment → align-items. 기본 .center.
-      Row: 교차축(세로). Column: 교차축(가로).
-      .center | .start | .end | .stretch | .baseline
-    - mainAxisAlignment → justify-content. 기본 없음 (CSS flex-start).
-      .start | .center | .end | .spaceBetween | .spaceAround | .spaceEvenly
-    - spacing → CSS gap (숫자면 Npx). 주축 간격.
-    - 크기·박스 모델: 별도 sugar 없음. width/height/margin/padding/bgColor/color/…
-      등 Box 속성을 Row/Column에 패스스루.
-    - 셀 너비(TableColumn width)와 CSS 박스 width 는 역할이 다름.
-    - TableColumn.alignment (<:>) 와 이름 공간이 다름 — 스택은 cross/mainAxis*.
-
-    예:
-    <Row inline=true crossAxisAlignment=.center spacing=4>
-      <Image fileName="로고.png" width=LayoutLength(100) />
-      <Column crossAxisAlignment=.start color=HexColor("#fff")>
-        <TitleText text="김마리" />
-        <Text text="관련 문서" size=.step(-1) weight=.bold />
-      </Column>
-    </Row>
 */
 
 <!-- Folding -->
@@ -564,7 +545,7 @@
 <!-- 인용구 (Quote) -->
 /*
     위키: 줄 맨 앞 `> ` — 인용 블록. 본문에는 텍스트·링크·이미지 등 인라인 요소 가능.
-    `'''…'''` 은 `<Text text="…" weight=.bold>` 와 동일(굵게).
+    꾸밈: `weight=.bold`→`'''…'''` / `decoration=[.italic]`→`''…''` / `[.underline]`→`__…__` / `[.line-through]`→`--…--`.
 
     <Quote>
       <Text text="인용구" weight=.bold />
@@ -620,6 +601,11 @@
     document("김마리(가수)")
     document("김마리(가수)/음반 목록")
 
+    4b) frame(_ title: String) -> Void
+    - document("틀:" + title) 과 동일 (이미 틀: 이면 유지). 렌더 출력 없음.
+    - 둘러보기 틀 .nwiki 용 sugar. document 와 파일당 합쳐 하나.
+    frame("김마리(가수)")  →  document_name = "틀:김마리(가수)"
+
     5) category(_ name: String) -> Void
     - 분류 연결할 때 사용된다. 한 줄에 하나씩 나열.
 
@@ -663,8 +649,10 @@
     [include(틀:김마리(가수))]
 
     작성 스타일
-    - document / category / include / includeFrame 은 한 줄에 호출 하나.
-    - 권장 순서: document → 분류 → 접근 제한 → 문서 유도 → 상위/하위/관련 → 토론 → 스포일러·선정성 등 → 둘러보기 틀 → 본문.
+    - document / frame / category / include / includeFrame / import 는 top-level 한 줄에 하나.
+    - <script> 금지. <template> 필수. props { } 도 top-level. extension / let 선언 없음.
+    - 권장 순서: document|frame → import → props → 분류 → include → <template>.
+    - 공유 토큰은 .json + import. 예약 타입(HexColor 등)만 template에서 호출. 임의 타입/enum 선언 금지.
 */
 
 <!-- 관련 프로토콜 -->
@@ -674,38 +662,43 @@
     }
 */
 
-<!-- 다른 문서에서 템플릿 가져오기 -->
+<!-- 다른 문서에서 템플릿 가져오기 / 데이터 -->
 /*
-    8) import(_ name: Ident) -> Void
-    - 컴포넌트 .nwiki 를 불러 <Name …/> 로 사용.
-    - 실제 조립 예: ../examples/introduce.nwiki
+    8) import Name from "path"   // 정본
+    - .nwiki → 컴포넌트. 왼쪽 Ident = 태그명 (<Name …/>).
+    - .json → 데이터 네임스페이스. 왼쪽 Ident = ${Name.key} / Name.key.
+    - 상대경로는 이 .nwiki 파일 디렉터리 기준.
+    - 구형 호환: import(ProfileTable) / import("….json") (stem 네임스페이스).
 
-    import(ProfileTable)
+    import ProfileTable from "./components/ProfileTable.nwiki"
+    import DesignSystem from "./data/design-system.json"
 
     <template>
-        <ProfileTable name="김마리" />
+      <ProfileTable name="김마리" />
     </template>
 
-    9) import(_ jsonPath: String) -> Void   // 경로가 .json 으로 끝나면 데이터 로드
-    - 위치: 파일 top-level 또는 <script> 안 (동일하게 처리).
-    - 상대경로: 이 .nwiki 파일이 있는 디렉터리 기준.
-    - 절대경로: 그대로 사용.
-    - 네임스페이스 = 파일 stem (designSystem.json → designSystem).
-    - JSON 루트는 { "key": "string", … } flat string 맵만 (1차).
-    - 템플릿에서 ${designSystem.accentColor} 또는 동일 MemberAccess 로 참조.
-    - 컴포넌트 .nwiki 의 JSON import 는 해당 컴포넌트 인라인 시에도 적용.
-    - 같은 stem 을 두 번 import 하면 빌드 에러.
-    - import("ProfileTable") 처럼 .json 이 아니면 컴포넌트 이름 문자열로 취급.
+    9) props { name: Type, opt: Type? }
+    - 컴포넌트 .nwiki top-level. 필수/선택만 검증 (기본값 없음). call-site 속성 → ${props.*}.
+    - <script> / let props 맵 금지.
 
-    import("./data/designSystem.json")
-    // 또는
-    <script>
-      import("../data/designSystem.json")
-    </script>
+    10) DesignSystem / JSON 토큰 (extension 없음)
+    - flat string JSON만. 키는 파일에 직접 추가 (예: defaultColor, defaultBgColor, bgColor).
+    - import DesignSystem from "….json" 후 DesignSystem.key / ${DesignSystem.key}.
+    - 듀얼 테마는 직렬화 문자열 "#222,#ddd" (JSON에 HexColor 객체 없음).
+    - 페인트: HexColor(…) | .hex(#RGB) | HexColor.white | DesignSystem.key | bare #222.
+    - HexColor(light:dark:) 등은 예약 init 호출(사용 지점). 사용자가 타입/let/enum을 선언하지 않음.
+
+    // data/design-system.json
+    // { "accentColor": "#87CEEB", "defaultBgColor": "#ddd,#222", … }
+
+    import DesignSystem from "./data/design-system.json"
 
     <template>
-      <Table borderColor=HexColor("${designSystem.accentColor}")>
-        …
+      <Table bgColor=HexColor("${DesignSystem.accentColor}")>
+        <TableColumn bgColor="${DesignSystem.defaultBgColor}">
+          <Text text="x" color=.hex(#abc) />
+          <Text text="y" color=HexColor(light: #222, dark: #ddd) />
+        </TableColumn>
       </Table>
     </template>
 */

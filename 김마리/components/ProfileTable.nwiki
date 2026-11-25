@@ -1,20 +1,17 @@
 /*
 ProfileTable — 인포박스(프로필 표) 재사용 템플릿 예제
-스펙: ../docs/SPEC.nwiki
-사용: introduce.nwiki 에서 import(ProfileTable)
+스펙: wiki-kit/docs/SPEC.nwiki
+사용: import ProfileTable from "./ProfileTable.nwiki"
 */
 
 /// 인포박스(프로필 표) 재사용 컴포넌트.
 ///
 /// - **props**: `name` (표시 이름)
-/// - 사용: `import(ProfileTable)` 후 `<ProfileTable name="…" />`
-/// - 스펙: `docs/SPEC.nwiki`
+/// - 사용: `import ProfileTable from "…"` 후 `<ProfileTable name="…" />`
 
-<script>
-    let props: [String: String] = {
-        "name": "김마리"
-    }
-</script>
+props {
+  name: String
+}
 
 <template>
   <Table

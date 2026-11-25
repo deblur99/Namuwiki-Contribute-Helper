@@ -4,42 +4,52 @@ Frame — 김마리(가수) 둘러보기 틀
 사용: includeFrame("김마리(가수)") → [include(틀:김마리(가수))]
 */
 
+frame("김마리(가수)") /*  document("틀:김마리(가수)") 와 동일 */
+
+import DesignSystem from "../data/design-system.json"
+
 /// 둘러보기 틀 헤더(로고 + 제목)와 하위 문서 내비 링크 줄.
 category("둘러보기 틀/밴드")
 category("김마리(가수)")
 
-<script>
-  import("../data/designSystem.json")
-</script>
+extension DesignSystem {
+  static let defaultColor = HexColor(light: #222, dark: #ddd)
+  static let defaultBgColor = HexColor(light: #ddd, dark: #222)
+}
 
 <template>
-  <Table width=LayoutLength(100, .percent)>
-
+  <Table width=LayoutLength(100, .percent) bgColor=HexColor("${DesignSystem.accentColor}")>
     <TableRow>
-      <TableColumn
-        alignment=.center
-        bgColor=HexColor("${designSystem.accentColor}")>
-        <Box
-          margin=Spacing(vertical: -5, horizontal: -10)
-          padding=Spacing(vertical: 5, horizontal: 10)>
-          <Link toDocument="김마리(가수)">
-            <Row inline=true crossAxisAlignment=.center spacing=4>
-              <Image fileName="마도리_로고.png" width=LayoutLength(100) />
-              <Column
-                crossAxisAlignment=.start
-                textAlign=.left
-                color=HexColor("${designSystem.whiteShort}")>
-                <TitleText text="김마리" />
-                <Text text="관련 문서" size=.step(-1) weight=.bold />
-              </Column>
-            </Row>
-          </Link>
-        </Box>
+      <TableColumn alignment=.center>
+        <Link toDocument="김마리(가수)">
+          <Box display=.flex flexDirection=.row justifyContent=.center alignItems=.center>
+            <Image fileName="마도리_로고.png" width=LayoutLength(100) />
+            <Box
+              display=.flex
+              flexDirection=.column
+              alignItems=.flexStart>
+              <Text
+                text="김마리"
+                size=.step(1)
+                color=HexColor("${DesignSystem.white}")
+                weight=.bold
+              />
+              <Text
+                text="관련 문서"
+                size=.step(-1)
+                weight=.bold
+                color=HexColor("${DesignSystem.white}")
+              />
+            </Box>
+          </Box>
+
+        </Link>
+
       </TableColumn>
     </TableRow>
 
     <TableRow>
-      <TableColumn alignment=.center delimiter=" · ">
+      <TableColumn alignment=.center delimiter=" · " bgColor="${DesignSystem.defaultBgColor}">
         <Link toDocument="김마리(가수)">
           <Text text="소개" size=.step(-2) />
         </Link>

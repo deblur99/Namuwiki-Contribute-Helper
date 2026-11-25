@@ -1,19 +1,32 @@
-"""Resolve import() and merge props / JSON data into template trees."""
+"""Resolve import() / import from and merge props / JSON data into template trees."""
 
 from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
 
-from .ast import CallExpr, Document, Element, InterpPart, InterpString, MemberAccess
-from .data_load import component_import_names, resolve_json_imports
+from .ast import (
+    CallExpr,
+    CallStmt,
+    Document,
+    Element,
+    InterpPart,
+    InterpString,
+    MemberAccess,
+    PropDecl,
+)
+from .data_load import (
+    component_import_names,
+    is_nwiki_import_arg,
+    resolve_json_imports,
+    resolve_json_path,
+)
 from .errors import NwikiError
 from .parser import parse_file
 
 
 def default_search_dirs(entry: Path) -> list[Path]:
     dirs: list[Path] = [entry.parent]
-    # sibling components/ (e.g. 김마리/pages → 김마리/components)
     sibling_components = entry.parent / "components"
     if sibling_components.is_dir():
         dirs.append(sibling_components)
@@ -29,7 +42,6 @@ def default_search_dirs(entry: Path) -> list[Path]:
         if (p / "components").is_dir() and (p / "components") not in dirs:
             dirs.append(p / "components")
             break
-    # dedupe preserving order
     seen: set[Path] = set()
     out: list[Path] = []
     for d in dirs:
@@ -46,7 +58,7 @@ def resolve_imports(
     search_dirs: list[Path] | None = None,
     data_namespaces: dict[str, dict[str, str]] | None = None,
 ) -> Document:
-    """Expand import(Name) + <Name .../> into inlined template elements."""
+    """Expand imported components + <Name .../> into inlined template elements."""
     entry = Path(doc.path) if doc.path else Path(".")
     dirs = search_dirs or default_search_dirs(entry)
     namespaces = (
@@ -58,18 +70,30 @@ def resolve_imports(
     out = Document(
         path=doc.path,
         stmts=[s for s in doc.stmts if s.name != "import"],
-        script_props=dict(doc.script_props),
         template=[],
         data_namespaces=dict(namespaces),
         document_name=doc.document_name,
+        prop_decls=dict(doc.prop_decls),
     )
 
     imports = component_import_names(doc)
     loaded: dict[str, Document] = {}
 
-    def load_component(name: str) -> Document:
+    def load_component(name: str, stmt: CallStmt) -> Document:
         if name in loaded:
             return loaded[name]
+        arg = stmt.args[0] if stmt.args else None
+        if isinstance(arg, str) and is_nwiki_import_arg(arg):
+            path = resolve_json_path(arg, entry=entry)
+            if not path.is_file():
+                raise NwikiError(
+                    f"cannot resolve import {name} from {arg!r} "
+                    f"(resolved {path}; relative to {entry.parent})"
+                )
+            comp = parse_file(str(path))
+            loaded[name] = resolve_json_imports(comp)
+            return loaded[name]
+        # Legacy: search dirs for Name.nwiki
         for d in dirs:
             candidate = d / f"{name}.nwiki"
             if candidate.is_file():
@@ -80,11 +104,9 @@ def resolve_imports(
 
     for el in doc.template:
         if el.name in imports:
-            comp = load_component(el.name)
-            props = dict(comp.script_props)
-            for k, v in el.attrs.items():
-                props[k] = _attr_to_prop_str(v)
-            # component JSON namespaces + parent (component wins on stem clash)
+            stmt = imports[el.name]
+            comp = load_component(el.name, stmt)
+            props = _bind_component_props(comp.prop_decls, el)
             merged = {**namespaces, **comp.data_namespaces}
             tree = deepcopy(comp.template)
             for node in tree:
@@ -93,11 +115,37 @@ def resolve_imports(
         else:
             out.template.append(deepcopy(el))
 
-    # Apply page-level script props + data namespaces to remaining / all roots
+    # Page-level namespaces. Component docs seed declared props so
+    # ${props.x} is valid when resolving the file alone (IDE / self-build).
+    page_props = {name: "" for name in out.prop_decls}
     for node in out.template:
-        _apply_bindings(node, out.script_props, namespaces)
+        _apply_bindings(node, page_props, namespaces)
 
     return out
+
+
+def _bind_component_props(
+    decls: dict[str, PropDecl], el: Element
+) -> dict[str, str]:
+    """Map call-site attrs to props; validate against props { } when present."""
+    props: dict[str, str] = {}
+    for k, v in el.attrs.items():
+        props[k] = _attr_to_prop_str(v)
+
+    if not decls:
+        return props
+
+    for k in props:
+        if k not in decls:
+            raise NwikiError(
+                f"unknown prop {k!r} on <{el.name}> (not in props {{ }})"
+            )
+    for name, decl in decls.items():
+        if not decl.optional and name not in props:
+            raise NwikiError(
+                f"missing required prop {name!r} on <{el.name}>"
+            )
+    return props
 
 
 def resolve_document(doc: Document) -> Document:
@@ -164,13 +212,16 @@ def _subst_expr(expr, props: dict[str, str], data_namespaces: dict[str, dict[str
             if key not in props:
                 raise NwikiError(f"unknown prop {key!r}")
             return props[key]
+        if root == "HexColor":
+            return expr
         if root in data_namespaces:
             ns = data_namespaces[root]
             if key not in ns:
                 raise NwikiError(f"unknown data key {root}.{key}")
             return ns[key]
         raise NwikiError(
-            f"unknown data namespace {root!r} (import a \".json\" file whose stem is {root!r})"
+            f"unknown data namespace {root!r} "
+            f'(import {root} from "….json" or use DesignSystem.*)'
         )
     if isinstance(expr, InterpString):
         return _subst_value(expr, props, data_namespaces)

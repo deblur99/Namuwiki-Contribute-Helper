@@ -1,12 +1,6 @@
 /** Static member catalog for `.` completion (heuristic, not a full typechecker). */
 
-export type MemberKind =
-  | "enum"
-  | "init"
-  | "staticMethod"
-  | "staticProp"
-  | "instanceProp"
-  | "instanceMethod";
+export type MemberKind = "enum" | "init" | "method" | "prop";
 
 export interface TypeMember {
   name: string;
@@ -32,7 +26,12 @@ export const TYPE_DOCS: Record<string, string> = {
   HexColor:
     "raw hex 문자열을 검증한 뒤 wikiValue로 직렬화한다.\n\n" +
     "입력: `#RGB`(3) 또는 `#RRGGBB`(6). `#` 없으면 붙여서 파싱. 대소문자 무시.\n\n" +
+    "bare `#222` 리터럴·`.hex(#RGB)` sugar·프리셋(`HexColor.white` / `.black` / `.transparent`) 지원.\n\n" +
     "나무위키는 `#RRGGBBAA` / `#RGBA` 투명 헥스를 지원하지 않는다 → `RgbaColor` / `opacity` / `.transparent` 사용.",
+  DesignSystem:
+    '`import DesignSystem from "./data/design-system.json"` 으로 바인딩. ' +
+    "키는 JSON flat string만. template에서 `DesignSystem.key` / `${DesignSystem.key}`. " +
+    "임의 타입·extension·let 선언 없음 (예약 HexColor 등만 호출).",
   LayoutLength:
     "레이아웃 길이. `LayoutLength(n)` 또는 `LayoutLength(n, .percent)`.\n\npercent일 때 0…100, point일 때 length > 0.",
   TextSize:
@@ -202,26 +201,70 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
       {
         name: "initLightDark",
         kind: "init",
-        insert: 'HexColor(light="${1:#FFFFFF}", dark="${2:#1C1D1F}")',
-        detail: "init(light:dark:)",
+        insert: "HexColor(light: ${1:#FFFFFF}, dark: ${2:#1C1D1F})",
+        detail: "init(light:dark:) — bare #hex OK",
+      },
+      {
+        name: "hex",
+        kind: "method",
+        insert: ".hex(${1:#fff})",
+        dotted: true,
+        detail: ".hex(#RGB|#RRGGBB)",
+        documentation: "단일 색 sugar. `color=.hex(#abc)`",
+      },
+      {
+        name: "white",
+        kind: "prop",
+        insert: "white",
+        detail: "HexColor.white → #fff",
+      },
+      {
+        name: "black",
+        kind: "prop",
+        insert: "black",
+        detail: "HexColor.black → #000",
+      },
+      {
+        name: "transparent",
+        kind: "prop",
+        insert: "transparent",
+        detail: "HexColor.transparent",
       },
       {
         name: "wikiValue",
-        kind: "instanceProp",
+        kind: "prop",
         insert: "wikiValue",
         detail: "SPEC / 문서용",
       },
       {
         name: "lightModeValue",
-        kind: "instanceProp",
+        kind: "prop",
         insert: "lightModeValue",
         detail: "SPEC / 문서용",
       },
       {
         name: "darkModeValue",
-        kind: "instanceProp",
+        kind: "prop",
         insert: "darkModeValue",
         detail: "SPEC / 문서용",
+      },
+    ],
+  },
+  DesignSystem: {
+    name: "DesignSystem",
+    documentation: TYPE_DOCS.DesignSystem,
+    members: [
+      {
+        name: "defaultColor",
+        kind: "prop",
+        insert: "defaultColor",
+        detail: "전경 프리셋 (기본 #222,#ddd)",
+      },
+      {
+        name: "defaultBgColor",
+        kind: "prop",
+        insert: "defaultBgColor",
+        detail: "배경 프리셋 (기본 #ddd,#222)",
       },
     ],
   },
@@ -242,7 +285,7 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
       },
       {
         name: "wikiValue",
-        kind: "instanceProp",
+        kind: "prop",
         insert: "wikiValue",
         detail: "SPEC / 문서용",
       },
@@ -253,9 +296,9 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
     members: [
       {
         name: "step",
-        kind: "staticMethod",
+        kind: "method",
         insert: "step(${1:1})",
-        detail: "static step(_ value)",
+        detail: "step(_ value)",
       },
       {
         name: "init",
@@ -350,30 +393,21 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
   },
 };
 
+/** Attribute → expected value type (for `attr=.` static/enum member completion). */
+export const ATTR_TYPES: Record<string, string> = {
+  size: "TextSize",
+  fontSize: "TextSize",
+};
+
 /** Enum cases suggested after `attr=` by attribute name */
 export const ATTR_ENUMS: Record<string, string[]> = {
   display: [".block", ".inline", ".inlineBlock", ".inlineFlex", ".flex"],
   align: [".left", ".center", ".right"],
   alignment: [".left", ".center", ".right"],
-  crossAxisAlignment: [
-    ".center",
-    ".start",
-    ".end",
-    ".stretch",
-    ".baseline",
-  ],
-  mainAxisAlignment: [
-    ".start",
-    ".center",
-    ".end",
-    ".spaceBetween",
-    ".spaceAround",
-    ".spaceEvenly",
-  ],
   textAlign: [".left", ".center", ".right", ".justify", ".start", ".end"],
   wordBreak: [".keepAll", ".breakAll", ".normal"],
   weight: [".bold", ".regular", ".medium", ".semiBold"],
-  decoration: [".underline", ".line-through", ".overline"],
+  decoration: [".italic", ".underline", ".line-through"],
   flexDirection: [".row", ".column"],
   alignItems: [".center", ".flexStart", ".flexEnd", ".stretch", ".baseline"],
   justifyContent: [
@@ -384,7 +418,6 @@ export const ATTR_ENUMS: Record<string, string[]> = {
     ".spaceAround",
     ".spaceEvenly",
   ],
-  inline: ["true", "false"],
   collapsed: ["true", "false"],
 };
 

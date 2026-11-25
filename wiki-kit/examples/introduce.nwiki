@@ -17,7 +17,7 @@ category("경희대학교 출신")
 includeFrame("김마리(가수)")
 
 <!-- 프로필 표 템플릿 -->
-import(ProfileTable)
+import ProfileTable from "./ProfileTable.nwiki"
 
 <template>
     <ProfileTable name="김마리" />

@@ -7,7 +7,7 @@
 | 경로 | 역할 |
 |------|------|
 | `{프로젝트}/templates/*.md` | 편집 원본. `${designSystem.*}` 토큰을 둘 수 있다. |
-| `{프로젝트}/data/designSystem.json` | 색상·프로필 이미지 등 토큰 값. |
+| `{프로젝트}/data/design-system.json` | 색상·프로필 이미지 등 토큰 값 (`DesignSystem.*`). |
 | `{프로젝트}/outputs/*.md` | 빌드 결과. 위키 편집기에 붙여넣는다. |
 | `scripts/build.py` | 공통 빌드 (레포 루트) |
 
@@ -23,7 +23,7 @@
   - 셀 배경: `<${designSystem.accentColor}>` (`<#`를 또 붙이지 않음)
   - 글자색: `{{{${designSystem.whiteShort} 텍스트}}}` (`{{{#`를 또 붙이지 않음)
 - 이미지: `[[${designSystem.profileImage}|width=100%]]`
-- JSON에 없는 키를 쓰면 빌드가 실패한다. 새 토큰은 해당 프로젝트의 `designSystem.json`에 먼저 추가한다.
+- JSON에 없는 키를 쓰면 빌드가 실패한다. 새 토큰은 해당 프로젝트의 `design-system.json`에 먼저 추가한다.
 
 ## 3. 빌드
 
@@ -54,6 +54,6 @@ python3 scripts/build.py
 
 ## 6. 작업 순서 요약
 
-1. `{프로젝트}/templates/` 또는 `data/designSystem.json` 수정  
+1. `{프로젝트}/templates/` 또는 `data/design-system.json` 수정  
 2. `python3 scripts/build.py {프로젝트}`  
 3. `{프로젝트}/outputs/` 확인 후 위키에 붙여넣기·미리보기·저장  

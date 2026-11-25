@@ -1,4 +1,20 @@
+import * as path from "path";
 import * as vscode from "vscode";
+
+/** Extract import path from `cannot load import from "…": file not found`. */
+function importPathFromMessage(message: string): string | undefined {
+  const m = /cannot load import from "([^"]+)": file not found/.exec(message);
+  return m?.[1];
+}
+
+function resolveImportPath(
+  document: vscode.TextDocument,
+  rel: string
+): string {
+  const trimmed = rel.trim();
+  if (path.isAbsolute(trimmed)) return trimmed;
+  return path.resolve(path.dirname(document.uri.fsPath), trimmed);
+}
 
 export class NwikiQuickFixProvider implements vscode.CodeActionProvider {
   static readonly providedCodeActionKinds = [
@@ -54,6 +70,44 @@ export class NwikiQuickFixProvider implements vscode.CodeActionProvider {
           arguments: [diag.message],
         };
         actions.push(help);
+      }
+
+      if (code === "import-missing-json") {
+        const rel = importPathFromMessage(diag.message);
+        if (rel) {
+          const abs = resolveImportPath(document, rel);
+          const action = new vscode.CodeAction(
+            "Create missing JSON file",
+            vscode.CodeActionKind.QuickFix
+          );
+          action.diagnostics = [diag];
+          action.isPreferred = true;
+          action.command = {
+            command: "nwiki.createMissingJson",
+            title: "Create missing JSON file",
+            arguments: [abs],
+          };
+          actions.push(action);
+        }
+      }
+
+      if (code === "import-missing-nwiki") {
+        const rel = importPathFromMessage(diag.message);
+        if (rel) {
+          const abs = resolveImportPath(document, rel);
+          const action = new vscode.CodeAction(
+            "Create missing component",
+            vscode.CodeActionKind.QuickFix
+          );
+          action.diagnostics = [diag];
+          action.isPreferred = true;
+          action.command = {
+            command: "nwiki.newComponent",
+            title: "Create missing component",
+            arguments: [abs],
+          };
+          actions.push(action);
+        }
       }
 
       // Wrap suggestion when message mentions TableColumn

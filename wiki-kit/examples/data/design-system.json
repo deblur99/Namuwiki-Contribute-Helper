@@ -1,6 +1,8 @@
 {
   "accentColor": "#87CEEB",
   "white": "#ffffff",
+  "defaultColor": "#222,#ddd",
+  "defaultBgColor": "#ddd,#222",
   "tableBgIntro": "#ffffff,#1c1d1f",
   "profileImage": "김마리_새파란신드롬_프로필.jpg"
 }

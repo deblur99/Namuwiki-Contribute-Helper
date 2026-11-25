@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
+
 from .ast import CallExpr, EnumRef, InterpPart, InterpString, MemberAccess
 from .errors import NwikiError
+
+_HEX_LIT = re.compile(r"#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?\b")
 
 
 def skip_ws(s: str, i: int) -> int:
@@ -112,6 +116,13 @@ def parse_call_args(s: str, i: int, name: str) -> tuple[CallExpr, int]:
         raise NwikiError("expected ',' or ')' in call", index=i)
 
 
+def parse_hex_literal(s: str, i: int) -> tuple[str, int]:
+    m = _HEX_LIT.match(s, i)
+    if not m:
+        raise NwikiError("expected #RGB or #RRGGBB", index=i)
+    return m.group(0), m.end()
+
+
 def parse_value(s: str, i: int):
     i = skip_ws(s, i)
     if i >= len(s):
@@ -120,6 +131,9 @@ def parse_value(s: str, i: int):
     if s[i] in "\"'":
         raw, j = parse_string(s, i)
         return parse_interp_string_content(raw), j
+
+    if s[i] == "#":
+        return parse_hex_literal(s, i)
 
     if s[i] == ".":
         return parse_enum_or_member(s, i)

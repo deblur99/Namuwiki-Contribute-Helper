@@ -7,16 +7,22 @@ from .errors import NwikiError
 
 
 def bind_document_name(doc: Document) -> None:
-    """Collect document(\"…\") into doc.document_name; leave stmt for render to skip."""
+    """Collect document(\"…\") / frame(\"…\") into doc.document_name; leave stmt for render to skip."""
     name: str | None = None
     for s in doc.stmts:
-        if s.name != "document":
-            continue
-        if not s.args or not isinstance(s.args[0], str) or not s.args[0]:
-            raise NwikiError('document() requires a non-empty string')
-        if name is not None:
-            raise NwikiError("duplicate document() call")
-        name = s.args[0]
+        if s.name == "document":
+            if not s.args or not isinstance(s.args[0], str) or not s.args[0]:
+                raise NwikiError('document() requires a non-empty string')
+            if name is not None:
+                raise NwikiError("duplicate document() / frame() call")
+            name = s.args[0]
+        elif s.name == "frame":
+            if not s.args or not isinstance(s.args[0], str) or not s.args[0]:
+                raise NwikiError('frame() requires a non-empty string')
+            if name is not None:
+                raise NwikiError("duplicate document() / frame() call")
+            title = s.args[0]
+            name = title if title.startswith("틀:") else f"틀:{title}"
     doc.document_name = name
 
 

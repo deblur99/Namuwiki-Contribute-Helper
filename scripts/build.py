@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build project outputs: {project}/templates + data/designSystem.json → {project}/outputs/"""
+"""Build project outputs: {project}/templates + data/design-system.json → {project}/outputs/"""
 
 from __future__ import annotations
 
@@ -9,11 +9,19 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PLACEHOLDER = re.compile(r"\$\{designSystem\.(\w+)\}")
+PLACEHOLDER = re.compile(r"\$\{(?:designSystem|DesignSystem)\.(\w+)\}")
+
+
+def design_system_path(project: Path) -> Path | None:
+    for name in ("design-system.json", "designSystem.json"):
+        p = project / "data" / name
+        if p.is_file():
+            return p
+    return None
 
 
 def is_project(path: Path) -> bool:
-    return (path / "templates").is_dir() and (path / "data" / "designSystem.json").is_file()
+    return (path / "templates").is_dir() and design_system_path(path) is not None
 
 
 def discover_projects() -> list[str]:
@@ -38,10 +46,11 @@ def build_project(name: str) -> None:
     project = ROOT / name
     if not is_project(project):
         raise SystemExit(
-            f"Not a project (need templates/ and data/designSystem.json): {name}"
+            f"Not a project (need templates/ and data/design-system.json): {name}"
         )
 
-    ds_path = project / "data" / "designSystem.json"
+    ds_path = design_system_path(project)
+    assert ds_path is not None
     templates = project / "templates"
     outputs = project / "outputs"
     ds = json.loads(ds_path.read_text(encoding="utf-8"))
@@ -66,7 +75,7 @@ def main(argv: list[str] | None = None) -> None:
     projects = args if args else discover_projects()
     if not projects:
         raise SystemExit(
-            "No projects found. Pass a name or add <name>/templates + data/designSystem.json."
+            "No projects found. Pass a name or add <name>/templates + data/design-system.json."
         )
 
     for name in projects:

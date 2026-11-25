@@ -30,16 +30,17 @@ Output 채널 `nwiki`에 `nwiki extension activated`가 보이면 로드된 것.
 | 자동완성 | 태그·속성·`Box`/`Folding`/`Heading`/`Badge`·`category`/`include`/`includeFrame`/`import` · `import("….json")` 키 (`${ns.`) |
 | `.` 멤버 완성 | `includeFrame(.` → CommonFrame, `Type.` → init/정적, 값.` → 인스턴스, `attr=` → 기대 enum |
 | `///` 문서 · 호버 | `///` 마크다운 문서 주석 → 식별자 호버/자동완성 툴팁. Enter 시 같은 열에 `/// ` 연속 |
-| 스니펫 | `tbl`, `tr`, `tc`, `tx`, `lk`, `img`, `cmt`, `cat`, `impj` … |
-| Emmet | `nwiki`에서 제외 (HTML 오제안 방지). Cursor Tab도 `nwiki` 비활성 → 확장 카탈로그 완성만 사용 |
-| 진단 | 빨간 밑줄 + hover (파서·오타·알 수 없는 태그·JSON import 실패) |
-| Quick Fix | `Ctrl+.` / `Cmd+.` |
+| 스니펫 | `tbl`, `tr`, `tc`, `tx`, `lk`, `img`, `cmt`, `cat`, `imp` … |
+| 스타터 | `nwframe` / `nwprofile` / `nwpage` 약어, 또는 명령 팔레트 Insert * Template (문서명=`nwiki.json`/`document`) |
+| Emmet | `nwiki`에서 제외 (HTML 오제안 방지). 스타터는 스니펫·명령으로 제공 |
+| 진단 | 빨간 밑줄 + hover (파서·오타·알 수 없는 태그·JSON/nwiki import 실패) |
+| Quick Fix | `Ctrl+.` / `Cmd+.` — 오타·태그 제안, 누락 `.json`(빈 `{}` 생성)·`.nwiki`(New Component) |
 | 정렬 | 저장 시(기본), `Ctrl+Alt+L` / `Cmd+Option+L`, 선택적 개행 시 |
-| 빌드 | 저장 시 `python3 scripts/build.py build <file>` → `outputs/<stem>.md` 열기 |
+| 빌드 | 확장 내장 `runtime/` 엔진으로 빌드 (문서 폴더만 열어도 OK). `nwiki.json` 있으면 `{프로젝트}/outputs/<stem>.md` |
 | 프리뷰 | 빌드 후 나무위키 raw 근사 HTML Webview (표·문단·wiki style·접기 등) |
 | 태그 닫기 | `/` → `/>` (속성 있는 태그는 `<Tag \| />` 슬롯, ↑↓면 여백 취소) · `>` → `></Tag>`, Enter 시 줄바꿈 확장 |
 | 태그 여러 줄 | 커서 `<Tag …>` 안 + `Ctrl+M` — 속성 여러 줄 ↔ 한 줄 토글 (Xcode Format to Multiple Lines) |
-| 주석 | 토글 블록 주석 = `<!-- … -->` (태그용). 파일 헤더 `/* */`·문서 `///` 도 엔진이 제거 |
+| 주석 | `<template>` 안 `<!-- … -->` / 밖 한 줄 `//`·여러 줄 `/* */` (저장 시 포맷이 맞춤). 문서 `///` 유지·엔진 제거. Cmd+/ 기본은 밖 스타일(`//`) |
 
 ## 설정
 
@@ -52,8 +53,17 @@ Output 채널 `nwiki`에 `nwiki extension activated`가 보이면 로드된 것.
 
 ## 명령 팔레트
 
+- `nwiki: New Document` — 문서 폴더 스캐폴드 (`index.nwiki`, `data/design-system.json`, …)
+- `nwiki: New Component` — `components/<Name>.nwiki` 골격 생성 (`props` + `<template>`)
+- `nwiki: Create Missing JSON` — 경로에 빈 `{}` JSON 생성 후 열기 (Quick Fix에서도 호출)
+- `nwiki: Insert Frame Template` / `Insert ProfileTable Template` / `Insert Article Template` — 현재 문서명로 삽입
+- `nwiki: Open Spec Guide` — `wiki-kit/docs/SPEC.nwiki` 열기
 - `nwiki: Build File`
 - `nwiki: Open Build Output`
 - `nwiki: Preview Build Output`
 - `nwiki: Format Document`
 - `nwiki: Format Tag to Multiple Lines` (`Ctrl+M`)
+
+문서명 추론 순서: `nwiki.json` → `document()`/`frame()` → 폴더명 → 입력 폴백.
+
+빌드 툴체인은 `npm run compile` 때 `runtime/`으로 동기화된다. 워크스페이스에 wiki-kit이 없어도 문서 폴더만으로 빌드·프리뷰가 된다.

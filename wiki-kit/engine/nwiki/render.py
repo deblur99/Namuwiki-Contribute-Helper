@@ -14,6 +14,7 @@ from .ast import (
 from .docpath import resolve_to_document
 from .errors import NwikiError
 from .frames import build_include_macro
+from .paint import norm_hex as _norm_hex  # noqa: F401 — tests import _norm_hex
 
 # Set for the duration of render_document (Link/Heading toDocument).
 _render_document_name: str | None = None
@@ -73,10 +74,6 @@ def render_element(el: Element, *, table_ctx: dict | None) -> str:
         return "[br]"
     if name == "Box":
         return render_box(el)
-    if name == "Row":
-        return render_row_stack(el)
-    if name == "Column":
-        return render_column_stack(el)
     if name == "Folding":
         return render_folding(el)
     if name == "Heading":
@@ -180,113 +177,6 @@ def render_badge(el: Element) -> str:
     return render_box(synthetic)
 
 
-_STACK_PASSTHROUGH = (
-    "width",
-    "maxWidth",
-    "minWidth",
-    "height",
-    "margin",
-    "padding",
-    "border",
-    "borderTop",
-    "borderRight",
-    "borderBottom",
-    "borderLeft",
-    "borderRadius",
-    "bgColor",
-    "background",
-    "color",
-    "opacity",
-    "textAlign",
-    "wordBreak",
-    "fontSize",
-    "fontFamily",
-    "styleExtra",
-)
-
-
-def render_row_stack(el: Element) -> str:
-    """Compose-style Row → flex / inline-flex Box (row)."""
-    return render_box(_stack_as_box(el, direction="row"))
-
-
-def render_column_stack(el: Element) -> str:
-    """Compose-style Column → flex Box (column)."""
-    return render_box(_stack_as_box(el, direction="column"))
-
-
-def _stack_as_box(el: Element, *, direction: str) -> Element:
-    """Flutter-tone axes: crossAxisAlignment / mainAxisAlignment / spacing."""
-    attrs: dict = {}
-    for key in _STACK_PASSTHROUGH:
-        if key in el.attrs and el.attrs[key] is not None:
-            attrs[key] = el.attrs[key]
-
-    inline = el.attrs.get("inline") is True
-    if direction == "row" and inline:
-        attrs["display"] = EnumRef(name="inlineFlex")
-    else:
-        attrs["display"] = EnumRef(name="flex")
-    attrs["flexDirection"] = EnumRef(name=direction)
-
-    cross = el.attrs.get("crossAxisAlignment")
-    if cross is not None:
-        attrs["alignItems"] = _cross_axis_to_flex(cross)
-    else:
-        attrs["alignItems"] = EnumRef(name="center")
-
-    main = el.attrs.get("mainAxisAlignment")
-    if main is not None:
-        attrs["justifyContent"] = _main_axis_to_flex(main)
-
-    spacing = el.attrs.get("spacing")
-    if spacing is not None:
-        attrs["gap"] = spacing
-
-    return Element(name="Box", attrs=attrs, children=el.children)
-
-
-def _cross_axis_to_flex(val) -> EnumRef:
-    name = _enum_name(val)
-    mapping = {
-        "center": "center",
-        "start": "flexStart",
-        "end": "flexEnd",
-        "flexStart": "flexStart",
-        "flexEnd": "flexEnd",
-        "stretch": "stretch",
-        "baseline": "baseline",
-        "left": "flexStart",
-        "right": "flexEnd",
-        "top": "flexStart",
-        "bottom": "flexEnd",
-    }
-    if name not in mapping:
-        raise NwikiError(f"unknown crossAxisAlignment .{name}")
-    return EnumRef(name=mapping[name])
-
-
-def _main_axis_to_flex(val) -> EnumRef:
-    name = _enum_name(val)
-    mapping = {
-        "center": "center",
-        "start": "flexStart",
-        "end": "flexEnd",
-        "flexStart": "flexStart",
-        "flexEnd": "flexEnd",
-        "spaceBetween": "spaceBetween",
-        "spaceAround": "spaceAround",
-        "spaceEvenly": "spaceEvenly",
-        "left": "flexStart",
-        "right": "flexEnd",
-        "top": "flexStart",
-        "bottom": "flexEnd",
-    }
-    if name not in mapping:
-        raise NwikiError(f"unknown mainAxisAlignment .{name}")
-    return EnumRef(name=mapping[name])
-
-
 def _render_flow_children(children: list[Element]) -> str:
     parts: list[str] = []
     for ch in children:
@@ -301,10 +191,12 @@ def _box_style_string(el: Element) -> str:
         if value is not None and value != "":
             decls.append(f"{prop}: {value}")
 
+    # Defaults: display=.flex; when flex/inlineFlex, flexDirection=.column
     display = el.attrs.get("display")
-    display_css = _display_css(display) if display is not None else None
-    if display_css:
-        add("display", display_css)
+    if display is None:
+        display = EnumRef(name="flex")
+    display_css = _display_css(display)
+    add("display", display_css)
 
     for attr, css in (
         ("width", "width"),
@@ -351,29 +243,28 @@ def _box_style_string(el: Element) -> str:
         add("opacity", _opacity_css(el.attrs["opacity"]))
 
     is_flex = display_css in ("flex", "inline-flex")
-    for attr, css in (
-        ("alignItems", "align-items"),
-        ("justifyContent", "justify-content"),
-        ("flexDirection", "flex-direction"),
-    ):
-        if el.attrs.get(attr) is not None:
-            if not is_flex:
-                raise NwikiError(f"{attr} requires display=.flex or .inlineFlex")
-            add(css, _flex_css(_enum_name(el.attrs[attr])))
+    if is_flex:
+        flex_dir = el.attrs.get("flexDirection")
+        if flex_dir is None:
+            flex_dir = EnumRef(name="column")
+        add("flex-direction", _flex_css(_enum_name(flex_dir)))
+        if el.attrs.get("justifyContent") is not None:
+            add(
+                "justify-content",
+                _flex_css(_enum_name(el.attrs["justifyContent"])),
+            )
+        if el.attrs.get("alignItems") is not None:
+            add("align-items", _flex_css(_enum_name(el.attrs["alignItems"])))
+        if el.attrs.get("gap") is not None:
+            add("gap", _gap_css(el.attrs["gap"]))
+    else:
+        for flex_attr in ("alignItems", "justifyContent", "flexDirection", "gap"):
+            if el.attrs.get(flex_attr) is not None:
+                raise NwikiError(
+                    f"{flex_attr} requires display=.flex or .inlineFlex"
+                )
 
-    if el.attrs.get("gap") is not None:
-        add("gap", _gap_css(el.attrs["gap"]))
-
-    if el.attrs.get("textAlign") is not None:
-        add("text-align", _enum_name(el.attrs["textAlign"]))
-    if el.attrs.get("wordBreak") is not None:
-        add("word-break", _word_break_css(_enum_name(el.attrs["wordBreak"])))
-
-    if isinstance(el.attrs.get("fontSize"), str):
-        add("font-size", el.attrs["fontSize"])
-    if isinstance(el.attrs.get("fontFamily"), str):
-        add("font-family", el.attrs["fontFamily"])
-
+    # color kept for Badge sugar (synthetic Box); not a public Box attr
     extra = el.attrs.get("styleExtra")
     if isinstance(extra, str) and extra.strip():
         piece = extra.strip().rstrip(";")
@@ -402,7 +293,7 @@ def _gap_css(val) -> str:
         return f"{n}px"
     if isinstance(val, CallExpr) and val.name == "LayoutLength":
         return _layout_length_css(val)
-    raise NwikiError("spacing/gap expected number (px) or LayoutLength")
+    raise NwikiError("gap expected number (px) or LayoutLength")
 
 
 def _flex_css(name: str) -> str:
@@ -648,7 +539,14 @@ def render_inline_children(
 
 def render_title_text(el: Element) -> str:
     text = _eval_text_attr(el.attrs.get("text", ""))
-    return "{{{+1 '''" + text + "'''}}}"
+    inner = "'''" + text + "'''"
+    # size +1 always; nest color outside size (namuwiki one directive per {{{}}})
+    text = "{{{+1 " + inner + "}}}"
+    color = el.attrs.get("color")
+    if color is not None:
+        # {{{#RRGGBB {{{+1 '''…'''}}}} / dual {{{#light,#dark {{{+1 '''…'''}}}}
+        text = "{{{" + _hex(color, lower=True) + " " + text + "}}}"
+    return text
 
 
 def render_text(el: Element) -> str:
@@ -656,26 +554,49 @@ def render_text(el: Element) -> str:
     weight = el.attrs.get("weight")
     size = el.attrs.get("size")
     deco = el.attrs.get("decoration")
+    color = el.attrs.get("color")
 
-    if weight is not None and _enum_name(weight) == "bold":
-        text = f"'''{text}'''"
-
+    deco_names: list[str] = []
     if deco is not None:
-        names = []
         if isinstance(deco, list):
-            names = [_enum_name(x) for x in deco]
+            deco_names = [_enum_name(x) for x in deco]
         else:
-            names = [_enum_name(deco)]
-        if "line-through" in names:
-            text = f"--{text}--"
+            deco_names = [_enum_name(deco)]
 
-    if size is not None:
-        step = _size_step(size)
-        if step != 0:
-            sign = f"+{step}" if step > 0 else str(step)
-            text = f"{{{{{{{sign} {text}}}}}}}"
+    italic = "italic" in deco_names
+    bold = weight is not None and _enum_name(weight).lower() == "bold"
+
+    # Inside-out: italic → bold → underline → line-through → size → color
+    if italic:
+        text = _wrap_wiki_italic(text)
+
+    if bold:
+        # Namuwiki: ''' ''bold italic'' ''' (spaces keep markers distinct)
+        text = f"''' {text} '''" if italic else _wrap_wiki_bold(text)
+
+    if "underline" in deco_names:
+        text = f"__{text}__"
+    if "line-through" in deco_names:
+        text = f"--{text}--"
+
+    # One namuwiki directive per {{{}}} — nest size then color
+    step = _size_step(size) if size is not None else 0
+    if step != 0:
+        sign = f"+{step}" if step > 0 else str(step)
+        text = f"{{{{{{{sign} {text}}}}}}}"
+    if color is not None:
+        hex_s = _hex(color, lower=True)
+        text = f"{{{{{{{hex_s} {text}}}}}}}"
 
     return text
+
+
+def _wrap_wiki_italic(text: str) -> str:
+    return f"''{text}''"
+
+
+def _wrap_wiki_bold(text: str) -> str:
+    return f"'''{text}'''"
 
 
 def render_image(el: Element) -> str:
@@ -784,6 +705,9 @@ def _enum_name(val) -> str:
         return val.name
     if isinstance(val, str):
         return val.lstrip(".")
+    if isinstance(val, MemberAccess) and val.parts:
+        # TextWeight.bold → bold
+        return val.parts[-1]
     raise NwikiError(f"expected enum, got {type(val).__name__}")
 
 
@@ -823,21 +747,13 @@ def _layout_length(val) -> str:
 
 
 def _hex(val, *, lower: bool = False) -> str:
-    if isinstance(val, CallExpr) and val.name == "HexColor":
-        if val.kwargs:
-            light = str(val.kwargs.get("light", ""))
-            dark = str(val.kwargs.get("dark", ""))
-            # dual theme: golden uses lowercase
-            return f"{_norm_hex(light, lower=True)},{_norm_hex(dark, lower=True)}"
-        if val.args:
-            return _norm_hex(str(val.args[0]), lower=lower)
-    if isinstance(val, str):
-        return _norm_hex(val, lower=lower)
-    raise NwikiError("expected HexColor")
+    from .paint import paint_to_wiki
+
+    return paint_to_wiki(val, lower=lower)
 
 
 def _paint_css(val, *, lower: bool = False) -> str:
-    """Solid paint: HexColor | RgbaColor | .transparent."""
+    """Solid paint: HexColor | .hex | HexColor.preset | RgbaColor | .transparent."""
     if isinstance(val, EnumRef) and val.name == "transparent":
         return "transparent"
     if isinstance(val, str) and val.lower() == "transparent":
@@ -1011,23 +927,3 @@ def _gradient_percent(val) -> str:
         return f"{_num_str(val)}%"
     raise NwikiError("gradient position expected number (%) or LayoutLength")
 
-
-def _norm_hex(h: str, *, lower: bool = False) -> str:
-    """Parse #RGB or #RRGGBB; preserve digit length on emit."""
-    raw = h.strip()
-    if not raw.startswith("#"):
-        raw = "#" + raw
-    body = raw[1:]
-    if len(body) in (4, 8):
-        raise NwikiError(
-            f"invalid HexColor {h!r}: namuwiki does not support "
-            "#RGBA/#RRGGBBAA; use RgbaColor / opacity / .transparent"
-        )
-    if len(body) not in (3, 6):
-        raise NwikiError(
-            f"invalid HexColor {h!r}: expected #RGB (3) or #RRGGBB (6)"
-        )
-    if any(c not in "0123456789abcdefABCDEF" for c in body):
-        raise NwikiError(f"invalid HexColor {h!r}: non-hex digit")
-    out = "#" + body
-    return out.lower() if lower else out

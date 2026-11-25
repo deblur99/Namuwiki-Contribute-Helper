@@ -27,14 +27,37 @@ def _walk(
                     f"TableRow direct child must be TableColumn, got {ch.name}"
                 )
     if el.name == "Box":
-        display = el.attrs.get("display")
-        is_flex = False
-        if display is not None:
-            from .ast import EnumRef
+        from .ast import EnumRef
 
-            name = display.name if isinstance(display, EnumRef) else str(display).lstrip(".")
+        for banned in (
+            "color",
+            "textAlign",
+            "wordBreak",
+            "fontSize",
+            "fontFamily",
+        ):
+            if el.attrs.get(banned) is not None:
+                raise NwikiError(
+                    f"Box.{banned} is not allowed; set on Text/TitleText (or child) instead"
+                )
+
+        display = el.attrs.get("display")
+        # Engine default display=.flex when omitted
+        if display is None:
+            is_flex = True
+        else:
+            name = (
+                display.name
+                if isinstance(display, EnumRef)
+                else str(display).lstrip(".")
+            )
             is_flex = name in ("flex", "inlineFlex")
-        for flex_attr in ("alignItems", "justifyContent", "flexDirection"):
+        for flex_attr in (
+            "alignItems",
+            "justifyContent",
+            "flexDirection",
+            "gap",
+        ):
             if el.attrs.get(flex_attr) is not None and not is_flex:
                 raise NwikiError(
                     f"{flex_attr} requires display=.flex or .inlineFlex"

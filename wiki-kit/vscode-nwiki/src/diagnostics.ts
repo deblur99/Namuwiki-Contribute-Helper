@@ -1,4 +1,6 @@
 import { spawn } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
 import {
   closestTag,
@@ -9,6 +11,13 @@ import {
 } from "./catalog";
 import { jsonImportDiagnostics } from "./jsonData";
 import { findWikiKitRoot } from "./paths";
+
+/** `import Name from "path"` — any extension. */
+const IMPORT_FROM_RE =
+  /\bimport\s+([A-Za-z_][\w]*)\s+from\s+(?:"([^"]+)"|'([^']+)')/g;
+/** Legacy `import("path.ext")` with a string path. */
+const IMPORT_CALL_PATH_RE =
+  /\bimport\s*\(\s*(?:"([^"]+)"|'([^']+)')\s*\)/g;
 
 export const collection = vscode.languages.createDiagnosticCollection("nwiki");
 
@@ -27,6 +36,7 @@ export async function diagnose(doc: vscode.TextDocument): Promise<void> {
   const text = doc.getText();
 
   const imported = collectImportedTags(text);
+  diagnostics.push(...importPathDiagnostics(doc));
   diagnostics.push(...jsonImportDiagnostics(doc));
 
   // Lightweight unknown-tag scan (built-ins + import(...))
@@ -228,14 +238,71 @@ export function requiredAttrDiagnostics(
   return diags;
 }
 
-/** Names from top-level import(Ident) / import("Ident") — skips *.json data imports. */
+/**
+ * Verify `import … from "path"` (and legacy `import("path")`) resolve to real files.
+ * Relative paths are resolved against the document directory.
+ */
+export function importPathDiagnostics(
+  doc: vscode.TextDocument
+): vscode.Diagnostic[] {
+  const text = doc.getText();
+  const baseDir = path.dirname(doc.uri.fsPath);
+  const diags: vscode.Diagnostic[] = [];
+
+  const check = (rel: string, index: number, length: number) => {
+    const trimmed = rel.trim();
+    if (!trimmed) return;
+    const resolved = path.isAbsolute(trimmed)
+      ? trimmed
+      : path.resolve(baseDir, trimmed);
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) return;
+    const d = new vscode.Diagnostic(
+      new vscode.Range(doc.positionAt(index), doc.positionAt(index + length)),
+      `cannot load import from "${trimmed}": file not found`,
+      vscode.DiagnosticSeverity.Error
+    );
+    d.source = "nwiki";
+    if (/\.json$/i.test(trimmed)) d.code = "import-missing-json";
+    else if (/\.nwiki$/i.test(trimmed)) d.code = "import-missing-nwiki";
+    else d.code = "import-path";
+    diags.push(d);
+  };
+
+  let m: RegExpExecArray | null;
+  IMPORT_FROM_RE.lastIndex = 0;
+  while ((m = IMPORT_FROM_RE.exec(text))) {
+    const rel = m[2] || m[3];
+    if (rel) check(rel, m.index, m[0].length);
+  }
+  IMPORT_CALL_PATH_RE.lastIndex = 0;
+  while ((m = IMPORT_CALL_PATH_RE.exec(text))) {
+    const rel = m[1] || m[2];
+    if (rel) check(rel, m.index, m[0].length);
+  }
+  return diags;
+}
+
+/** Names from `import Tag from "….nwiki"` / legacy import(Ident) — skips *.json. */
 export function collectImportedTags(text: string): Set<string> {
   const names = new Set<string>();
-  const re = /\bimport\s*\(\s*(?:([A-Za-z_][\w]*)|"([^"]+)"|'([^']+)')\s*\)/g;
+  const fromRe =
+    /\bimport\s+([A-Za-z_][\w]*)\s+from\s+(?:"([^"]+)"|'([^']+)')/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text))) {
+  while ((m = fromRe.exec(text))) {
+    const binding = m[1];
+    const path = m[2] || m[3] || "";
+    if (/\.json$/i.test(path)) continue;
+    names.add(binding);
+  }
+  const callRe =
+    /\bimport\s*\(\s*(?:([A-Za-z_][\w]*)|"([^"]+)"|'([^']+)')\s*\)/g;
+  while ((m = callRe.exec(text))) {
     const name = m[1] || m[2] || m[3];
     if (!name || /\.json$/i.test(name)) continue;
+    if (/\.nwiki$/i.test(name)) {
+      names.add(name.replace(/\.nwiki$/i, "").split(/[/\\]/).pop()!);
+      continue;
+    }
     names.add(name);
   }
   return names;

@@ -16,10 +16,29 @@ import { formatTagMultilineAtCursor } from "./formatTagMultiline";
 import { NwikiHoverProvider } from "./hover";
 import { disposePreview, showBuildPreview } from "./preview";
 import { NwikiQuickFixProvider } from "./quickFix";
+import {
+  insertArticleTemplate,
+  insertFrameTemplate,
+  insertProfileTableTemplate,
+  openSpecGuide,
+} from "./insertTemplate";
+import { setExtensionPath, findWikiKitRoot } from "./paths";
+import {
+  createMissingJsonCommand,
+  newComponentCommand,
+  newDocumentCommand,
+} from "./scaffold";
 
 export function activate(context: vscode.ExtensionContext): void {
+  setExtensionPath(context.extensionPath);
   const out = getOutput();
   out.appendLine("nwiki extension activated");
+  const kit = findWikiKitRoot();
+  out.appendLine(
+    kit
+      ? `nwiki toolchain: ${kit}`
+      : "nwiki toolchain: not found (run npm run compile to sync runtime/)"
+  );
 
   const selector: vscode.DocumentSelector = { language: "nwiki" };
 
@@ -165,6 +184,35 @@ export function activate(context: vscode.ExtensionContext): void {
         getOutput().appendLine(text);
         getOutput().show(true);
       }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("nwiki.newDocument", () =>
+      newDocumentCommand()
+    ),
+    vscode.commands.registerCommand(
+      "nwiki.newComponent",
+      (targetPath?: string) => newComponentCommand(targetPath)
+    ),
+    vscode.commands.registerCommand(
+      "nwiki.createMissingJson",
+      (targetPath?: string) => createMissingJsonCommand(targetPath)
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("nwiki.insertFrameTemplate", () =>
+      insertFrameTemplate()
+    ),
+    vscode.commands.registerCommand("nwiki.insertProfileTableTemplate", () =>
+      insertProfileTableTemplate()
+    ),
+    vscode.commands.registerCommand("nwiki.insertArticleTemplate", () =>
+      insertArticleTemplate()
+    ),
+    vscode.commands.registerCommand("nwiki.openSpecGuide", () =>
+      openSpecGuide(context.extensionPath)
     )
   );
 

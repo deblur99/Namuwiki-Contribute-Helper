@@ -24,7 +24,7 @@ def build_registry() -> ComponentRegistry:
 
 def cmd_validate(_: argparse.Namespace) -> int:
     reg = build_registry()
-    ds_path = ROOT / "data" / "designSystem.json"
+    ds_path = ROOT / "data" / "design-system.json"
     ds_keys = set(load_json(ds_path)) if ds_path.is_file() else None
 
     errors: list[str] = []
@@ -80,7 +80,7 @@ def cmd_build(args: argparse.Namespace) -> int:
         return cmd_nwiki_build(ns)
 
     reg = build_registry()
-    ds = load_json(ROOT / "data" / "designSystem.json")
+    ds = load_json(ROOT / "data" / "design-system.json")
     out_dir = ROOT / "outputs"
     out_dir.mkdir(exist_ok=True)
 

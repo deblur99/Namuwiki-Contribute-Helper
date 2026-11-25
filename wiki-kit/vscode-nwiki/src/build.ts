@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import * as path from "path";
 import * as vscode from "vscode";
 import { findWikiKitRoot, outputPathFor } from "./paths";
 
@@ -16,7 +17,8 @@ export async function buildNwikiFile(
 ): Promise<{ ok: boolean; outputPath?: string; stderr: string }> {
   const root = findWikiKitRoot(filePath);
   if (!root) {
-    const msg = "wiki-kit root not found (scripts/build.py)";
+    const msg =
+      "nwiki toolchain not found (extension runtime/). Run npm run compile / install:local.";
     getOutput().appendLine(msg);
     return { ok: false, stderr: msg };
   }
@@ -24,7 +26,7 @@ export async function buildNwikiFile(
   const python = vscode.workspace
     .getConfiguration("nwiki")
     .get<string>("pythonPath", "python3");
-  const script = require("path").join(root, "scripts", "build.py");
+  const script = path.join(root, "scripts", "build.py");
   const outPath = outputPathFor(filePath, root);
 
   getOutput().appendLine(`$ ${python} ${script} build ${filePath}`);

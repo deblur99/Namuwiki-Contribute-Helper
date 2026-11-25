@@ -3,6 +3,8 @@
   "white": "#ffffff",
   "whiteShort": "#fff",
   "black": "#000000",
+  "defaultColor": "#222,#ddd",
+  "defaultBgColor": "#ddd,#222",
   "tableBgAlbum": "#EEE,#333",
   "tableBgIntro": "#ffffff,#1c1d1f",
   "lyricHighlightBg": "#A0D8EF",

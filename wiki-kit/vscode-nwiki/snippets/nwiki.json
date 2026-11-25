@@ -49,7 +49,7 @@
   },
   "document": {
     "prefix": "doc",
-    "body": "document(\"${1:표제어}\")",
+    "body": "document(\"${1:문서명}\")",
     "description": "Current wiki document title for ./ ../ toDocument"
   },
   "Comment": {
@@ -102,51 +102,125 @@
     "body": "TextSize.step(${1:1})",
     "description": "TextSize.step(n)"
   },
-  "import": {
+  "import from": {
     "prefix": "imp",
-    "body": "import(${1:ProfileTable})",
-    "description": "import() component"
+    "body": "import ${1:DesignSystem} from \"${2:./data/design-system.json}\"",
+    "description": "import Name from \"path\" (.json | .nwiki)"
   },
-  "import JSON": {
-    "prefix": "impj",
-    "body": "import(\"${1:../data/designSystem.json}\")",
-    "description": "import(\".json\") — stem namespace for ${stem.key}"
+  "import component": {
+    "prefix": "impc",
+    "body": "import ${1:ProfileTable} from \"${2:./components/ProfileTable.nwiki}\"",
+    "description": "import component from .nwiki"
+  },
+  "props block": {
+    "prefix": "props",
+    "body": [
+      "props {",
+      "\t${1:name}: ${2:String}",
+      "}"
+    ],
+    "description": "Component props { name: Type }"
+  },
+  "Starter Frame": {
+    "prefix": "nwframe",
+    "body": [
+      "frame(\"${1:문서명}\")",
+      "",
+      "import DesignSystem from \"${2:../data/design-system.json}\"",
+      "",
+      "category(\"둘러보기 틀\")",
+      "category(\"${1:문서명}\")",
+      "",
+      "<template>",
+      "\t<Table width=LayoutLength(100, .percent) bgColor=HexColor(\"\\${DesignSystem.accentColor}\")>",
+      "\t\t<TableRow>",
+      "\t\t\t<TableColumn alignment=.center>",
+      "\t\t\t\t<Link toDocument=\"${1:문서명}\">",
+      "\t\t\t\t\t<Text text=\"${3:제목}\" size=.step(1) color=HexColor(\"\\${DesignSystem.white}\") weight=.bold />",
+      "\t\t\t\t</Link>",
+      "\t\t\t</TableColumn>",
+      "\t\t</TableRow>",
+      "\t\t<TableRow>",
+      "\t\t\t<TableColumn alignment=.center delimiter=\" · \" bgColor=\"\\${DesignSystem.defaultBgColor}\">",
+      "\t\t\t\t<Link toDocument=\"${1:문서명}\"><Text text=\"소개\" size=.step(-2) /></Link>",
+      "\t\t\t\t<Link toDocument=\"${1:문서명}/하위\"><Text text=\"하위\" size=.step(-2) /></Link>",
+      "\t\t\t</TableColumn>",
+      "\t\t</TableRow>",
+      "\t</Table>",
+      "</template>",
+      "$0"
+    ],
+    "description": "Frame starter (prefer: nwiki: Insert Frame Template — uses document title)"
+  },
+  "Starter ProfileTable": {
+    "prefix": "nwprofile",
+    "body": [
+      "props {",
+      "\tname: String",
+      "}",
+      "",
+      "<template>",
+      "\t<Table width=LayoutLength(500) align=.right borderColor=HexColor(\"#00BFFF\") bgColor=HexColor(light=\"#FFFFFF\", dark=\"#1C1D1F\")>",
+      "\t\t<TableRow>",
+      "\t\t\t<TableColumn colSpan=2 bgColor=HexColor(\"#87CEEB\")>",
+      "\t\t\t\t<TitleText text=\"\\${props.name}\" />",
+      "\t\t\t</TableColumn>",
+      "\t\t</TableRow>",
+      "\t\t<TableRow>",
+      "\t\t\t<TableColumn colSpan=2 nopad=true>",
+      "\t\t\t\t<Image fileName=\"${1:프로필.jpg}\" width=LayoutLength(100, .percent) />",
+      "\t\t\t</TableColumn>",
+      "\t\t</TableRow>",
+      "\t\t<TableRow>",
+      "\t\t\t<TableColumn width=LayoutLength(85)><Text text=\"본명\" weight=.bold /></TableColumn>",
+      "\t\t\t<TableColumn><Text text=\"${2}\" /></TableColumn>",
+      "\t\t</TableRow>",
+      "\t</Table>",
+      "</template>",
+      "$0"
+    ],
+    "description": "ProfileTable starter (prefer: nwiki: Insert ProfileTable Template)"
+  },
+  "Starter Article": {
+    "prefix": "nwpage",
+    "body": [
+      "document(\"${1:문서명}\")",
+      "",
+      "import DesignSystem from \"./data/design-system.json\"",
+      "import ProfileTable from \"./components/ProfileTable.nwiki\"",
+      "",
+      "category(\"${1:문서명}\")",
+      "includeFrame(\"${1:문서명}\")",
+      "",
+      "<template>",
+      "\t<ProfileTable name=\"${2:이름}\" />",
+      "\t<Heading toDocument=\"./하위\" title=\"하위\" />",
+      "\t<Heading title=\"여담\">",
+      "\t\t<Quote>",
+      "\t\t</Quote>",
+      "\t\t<Text text=\"$0\" />",
+      "\t</Heading>",
+      "</template>"
+    ],
+    "description": "Article page starter (prefer: nwiki: Insert Article Template — uses document title)"
   },
   "Box": {
     "prefix": "box",
     "body": [
-      "<Box$1>",
+      "<Box display=.flex flexDirection=.column justifyContent=.flexStart alignItems=.stretch gap=${1:0}$2>",
       "\t$0",
       "</Box>"
     ],
-    "description": "Box ({{{#!wiki style}}})"
+    "description": "Box (default flex column + gap)"
   },
   "Box flex row": {
     "prefix": "boxflex",
     "body": [
-      "<Box display=.flex padding=Spacing(${1:12}) alignItems=.center justifyContent=.center>",
+      "<Box display=.flex flexDirection=.row justifyContent=.flexStart alignItems=.center gap=${1:0}$2>",
       "\t$0",
       "</Box>"
     ],
-    "description": "Flex Box row"
-  },
-  "Row": {
-    "prefix": "row",
-    "body": [
-      "<Row crossAxisAlignment=.center spacing=${1:4}$2>",
-      "\t$0",
-      "</Row>"
-    ],
-    "description": "Row (flex row / inline-flex, Flutter-tone axes)"
-  },
-  "Column": {
-    "prefix": "column",
-    "body": [
-      "<Column crossAxisAlignment=.start$1>",
-      "\t$0",
-      "</Column>"
-    ],
-    "description": "Column (flex column, Flutter-tone axes)"
+    "description": "Flex Box row (gap)"
   },
   "Heading": {
     "prefix": "hd",

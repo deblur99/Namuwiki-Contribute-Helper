@@ -9,24 +9,22 @@
     margin=Spacing(top: 10, horizontal: .auto)
     border=Border(width: 0)
     borderRadius=8
-    bgColor=HexColor("#000")
-    color=HexColor("#fff")
-    textAlign=.center
-    wordBreak=.keepAll>
+    bgColor=HexColor("#000")>
     <Box
       display=.flex
+      flexDirection=.row
+      justifyContent=.center
+      alignItems=.center
       width=LayoutLength(90, .percent)
       margin=Spacing(.auto)
       padding=Spacing(12)
-      borderBottom=Border(width: 1, style: .solid)
-      alignItems=.center
-      justifyContent=.center>
+      borderBottom=Border(width: 1, style: .solid)>
       <Box
         padding=Spacing(vertical: 5, horizontal: 10)
         borderRight=Border(width: 1, style: .solid)>
         <Link toDocument="김마리(가수)" label="logo" />
       </Box>
-      <Box padding=Spacing(horizontal: 10) textAlign=.left>
+      <Box padding=Spacing(horizontal: 10)>
         <Link toDocument="김마리(가수)" label="김마리" />
       </Box>
     </Box>
