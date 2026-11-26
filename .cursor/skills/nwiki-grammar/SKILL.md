@@ -58,7 +58,7 @@ includeFrame(.adult)
 
 <template>
   <ProfileTable name="문서명" />
-  <!-- DesignSystem.key / HexColor(light:dark:) 예약 호출만 -->
+  <!-- DesignSystem.key / HexColor(light=dark=) 예약 호출만 -->
 </template>
 ```
 
@@ -110,8 +110,8 @@ props {
 ## 값·타입 치트
 
 - `HexColor` — `#RGB`/`#RRGGBB`만; 알파 hex 금지 → `RgbaColor` / opacity
-- `HexColor(light: #…, dark: #…)` → `light,dark` (bare `#` 허용)
-- `LayoutLength(100)` / `(50, .percent)`
+- `HexColor(light="#…" dark="#…")` — 호출 인자는 **공백 + `=`** (`light:…` / `,` 금지). `,`는 `[…]`만
+- `LayoutLength(100)` / `LayoutLength(100 .percent)`
 - enum: `.right`, `.bold`, `.percent` …
 - 보간: `"${props.name}"`, `"${DesignSystem.accentColor}"`
 
@@ -126,6 +126,7 @@ props {
 - `<script>` / `let props` 맵 / `Heading level=`
 - `틀:19금` (정본 `.adult`)
 - JSON 중첩·배열·숫자 (flat string만)
+- 호출 인자 `,` 또는 `name: value` (정본은 공백 + `name=value`; `,`는 리스트만)
 - `delimeter` → `delimiter`
 - `designSystem.json` 구 파일명 제안 (정본 `design-system.json`)
 
