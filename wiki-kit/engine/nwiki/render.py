@@ -82,12 +82,18 @@ def render_element(el: Element, *, table_ctx: dict | None) -> str:
         return render_badge(el)
     if name == "Quote":
         return render_quote(el)
+    if name == "List":
+        return render_list(el, depth=1)
+    if name == "ListItem":
+        raise NwikiError("ListItem outside List")
     raise NwikiError(f"unknown element {name}")
 
 
 def render_box(el: Element) -> str:
     style = _box_style_string(el)
-    body = _render_flow_children(el.children)
+    body = render_inline_children(
+        el.children, delimiter=el.attrs.get("delimiter")
+    )
     if style:
         return '{{{#!wiki style="' + style + '"\n' + body + "\n}}}"
     return "{{{#!wiki\n" + body + "\n}}}"
@@ -156,6 +162,45 @@ def render_quote(el: Element) -> str:
         lines = body.split("\n")
         return "\n".join(f"> {line}" if line else ">" for line in lines)
     return f"> {body}"
+
+
+def render_list(el: Element, *, depth: int = 1) -> str:
+    """Unordered list: ` · 본문` (middle dot); nested List → one more leading space."""
+    if depth < 1:
+        raise NwikiError(f"List depth must be >= 1 (got {depth})")
+    chunks: list[str] = []
+    for ch in el.children:
+        if ch.name != "ListItem":
+            raise NwikiError(f"List direct child must be ListItem, got {ch.name}")
+        chunks.append(render_list_item(ch, depth=depth))
+    return "\n".join(c for c in chunks if c is not None and c != "")
+
+
+def render_list_item(el: Element, *, depth: int) -> str:
+    """One bullet line (and nested lists) for a ListItem."""
+    prefix = (" " * depth) + "· "
+    body_children: list[Element] = []
+    nested: list[Element] = []
+    for ch in el.children:
+        if ch.name == "List":
+            nested.append(ch)
+        else:
+            body_children.append(ch)
+    body = _render_flow_children(body_children)
+    if not body:
+        lines = [prefix.rstrip()]
+    elif "\n" in body:
+        lines = [
+            f"{prefix}{line}" if line else prefix.rstrip()
+            for line in body.split("\n")
+        ]
+    else:
+        lines = [f"{prefix}{body}"]
+    for nest in nested:
+        nested_out = render_list(nest, depth=depth + 1)
+        if nested_out:
+            lines.append(nested_out)
+    return "\n".join(lines)
 
 
 def render_badge(el: Element) -> str:
@@ -447,6 +492,9 @@ def render_table(table: Element) -> str:
 
 def render_row(row: Element, ctx: dict) -> str:
     # namuwiki: || cell1 || cell2 ||
+    # Mutate shared table ctx so table* hoist persists across rows.
+    ctx["rowBgColor"] = row.attrs.get("bgColor")
+    ctx["rowHoisted"] = False
     cells: list[str] = []
     for col in row.children:
         if col.name != "TableColumn":
@@ -487,15 +535,19 @@ def render_column_inner(col: Element, ctx: dict) -> str:
         if ctx.get("bgColor") is not None:
             prefixes.append(f"<tablebgcolor={_hex(ctx['bgColor'])}>")
 
+    if not ctx.get("rowHoisted") and ctx.get("rowBgColor") is not None:
+        ctx["rowHoisted"] = True
+        prefixes.append(f"<rowbgcolor={_hex(ctx['rowBgColor'])}>")
+
     bg = col.attrs.get("bgColor")
     has_title = any(c.name == "TitleText" for c in col.children)
     if bg is not None:
         if has_title:
+            # Profile header sugar: color column downward + white text
             prefixes.append(f"<colbgcolor={_hex(bg)}>")
             prefixes.append("<colcolor=#fff>")
         else:
-            # namuwiki cell bgcolor shorthand: <#RRGGBB>
-            prefixes.append(f"<{_hex(bg)}>")
+            prefixes.append(f"<bgcolor={_hex(bg)}>")
 
     body = render_inline_children(col.children, delimiter=col.attrs.get("delimiter"))
     prefix = "".join(prefixes)

@@ -16,11 +16,17 @@ from .expr import (
 )
 
 
-def strip_comments(source: str) -> str:
-    """Remove /* */, <!-- -->, /// doc lines, and // line comments (non-nested).
+def _blank_span(source: str, start: int, end: int) -> str:
+    """Replace [start, end) with spaces, keeping newlines so indices/lines stay aligned."""
+    return "".join("\n" if source[j] == "\n" else " " for j in range(start, end))
 
-    Strings (\"…\" / '…') are left intact so URLs like http:// survive.
-    /// is stripped as a whole line before // matching.
+
+def strip_comments(source: str) -> str:
+    """Blank out /* */, <!-- -->, /// doc lines, and // line comments (non-nested).
+
+    Comment text is replaced with spaces (newlines kept) so cleaned indices match
+    the original source. Strings (\"…\" / '…') are left intact so URLs like http://
+    survive. /// is blanked as a whole line before // matching.
     """
     out: list[str] = []
     i = 0
@@ -55,29 +61,37 @@ def strip_comments(source: str) -> str:
             continue
 
         if _at_line_start(source, i) and _is_doc_comment_line(source, i):
+            start = i
             while i < n and source[i] != "\n":
                 i += 1
+            out.append(_blank_span(source, start, i))
             continue
 
         if source.startswith("/*", i):
             end = source.find("*/", i + 2)
             if end < 0:
                 raise NwikiError("unterminated /* comment", index=i)
-            i = end + 2
+            end += 2
+            out.append(_blank_span(source, i, end))
+            i = end
             continue
 
         if source.startswith("<!--", i):
             end = source.find("-->", i + 4)
             if end < 0:
                 raise NwikiError("unterminated <!-- comment", index=i)
-            i = end + 3
+            end += 3
+            out.append(_blank_span(source, i, end))
+            i = end
             continue
 
         # // line comment (not /// — already handled). Require start or whitespace.
         if source.startswith("//", i) and not source.startswith("///", i):
             if i == 0 or source[i - 1] in " \t\n":
+                start = i
                 while i < n and source[i] != "\n":
                     i += 1
+                out.append(_blank_span(source, start, i))
                 continue
 
         out.append(ch)
@@ -125,7 +139,12 @@ def reject_extension(cleaned: str) -> None:
 
 
 def parse_props_block(cleaned: str) -> dict[str, PropDecl]:
-    """Parse top-level `props { name: String, subtitle: String? }`."""
+    """Parse top-level `props { name: required, age }` (values are always String).
+
+    - `name: required` → required
+    - bare `age` → optional
+    - legacy `name: String` / `opt: String?` → error with guidance
+    """
     blocked = _blocked_ranges(cleaned)
     decls: dict[str, PropDecl] = {}
     for m in _PROPS_BLOCK.finditer(cleaned):
@@ -139,23 +158,33 @@ def parse_props_block(cleaned: str) -> dict[str, PropDecl]:
                 break
             name, i = parse_ident(block, i)
             i = skip_ws(block, i)
-            if i >= len(block) or block[i] != ":":
-                raise NwikiError(
-                    f"expected ':' after prop {name}",
-                    index=m.start(1) + i,
-                )
-            i += 1
-            i = skip_ws(block, i)
-            type_name, i = parse_ident(block, i)
-            optional = False
-            if i < len(block) and block[i] == "?":
-                optional = True
+            optional = True
+            if i < len(block) and block[i] == ":":
                 i += 1
+                i = skip_ws(block, i)
+                if i >= len(block):
+                    raise NwikiError(
+                        f"prop {name}: expected 'required' after ':' "
+                        f"(or use bare '{name}' for optional)",
+                        index=m.start(1) + i,
+                    )
+                marker, i = parse_ident(block, i)
+                if marker == "required":
+                    optional = False
+                else:
+                    raise NwikiError(
+                        f"prop {name}: use '{name}: required' or bare '{name}' "
+                        f"(values are always String; got {marker!r})",
+                        index=m.start(1) + i - len(marker),
+                    )
+                if i < len(block) and block[i] == "?":
+                    raise NwikiError(
+                        f"prop {name}: '?' is removed; use bare '{name}' for optional",
+                        index=m.start(1) + i,
+                    )
             if name in decls:
                 raise NwikiError(f"duplicate prop declaration {name!r}")
-            decls[name] = PropDecl(
-                name=name, type_name=type_name, optional=optional
-            )
+            decls[name] = PropDecl(name=name, optional=optional)
             i = skip_ws(block, i)
             if i < len(block) and block[i] == ",":
                 i += 1
@@ -254,15 +283,42 @@ def parse_document(source: str, *, path: str | None = None) -> Document:
     doc.stmts.extend(parse_top_level_calls(cleaned))
     doc.prop_decls = parse_props_block(cleaned)
 
-    body = tm.group(1).strip()
-    elements, idx = parse_element_list(body, 0)
+    raw_body = tm.group(1)
+    body = raw_body.strip()
+    body_offset = tm.start(1) + (len(raw_body) - len(raw_body.lstrip()))
+    try:
+        elements, idx = parse_element_list(body, 0)
+    except NwikiError as e:
+        raise _rebase_error(e, body_offset) from e
     idx = skip_ws(body, idx)
     if idx < len(body):
-        raise NwikiError("trailing content in <template>", index=idx)
+        raise NwikiError(
+            "trailing content in <template>",
+            index=body_offset + idx,
+        )
+    _rebase_attr_starts(elements, body_offset)
     doc.template = elements
 
     bind_document_name(doc)
     return doc
+
+
+def _rebase_attr_starts(elements: list[Element], offset: int) -> None:
+    for el in elements:
+        el.attr_starts = {k: v + offset for k, v in el.attr_starts.items()}
+        _rebase_attr_starts(el.children, offset)
+
+
+def _rebase_error(err: NwikiError, offset: int) -> NwikiError:
+    """Shift a body-relative NwikiError.index to a full-source absolute index."""
+    if err.index is None:
+        return err
+    msg = err.args[0] if err.args else str(err)
+    if isinstance(msg, str):
+        suf = f" (at {err.index})"
+        if msg.endswith(suf):
+            msg = msg[: -len(suf)]
+    return NwikiError(msg, index=offset + err.index)
 
 
 def parse_element_list(s: str, i: int) -> tuple[list[Element], int]:
@@ -289,6 +345,7 @@ def parse_element(s: str, i: int) -> tuple[Element, int]:
 
     name, i = _parse_tag_name(s, i)
     attrs: dict = {}
+    attr_starts: dict[str, int] = {}
     i = skip_ws(s, i)
     while i < len(s) and s[i] not in "/>":
         if not (s[i].isalpha() or s[i] == "_"):
@@ -299,30 +356,61 @@ def parse_element(s: str, i: int) -> tuple[Element, int]:
         key = s[key_start:i]
         i = skip_ws(s, i)
         if i >= len(s) or s[i] != "=":
-            raise NwikiError(f"expected '=' after attr {key}", index=i)
+            raise NwikiError(
+                f"expected '=' after attr {key}",
+                index=key_start,
+            )
         i += 1
         i = skip_ws(s, i)
+        value_start = i
         if i < len(s) and s[i] in "\"'":
             raw, i = parse_string(s, i)
             val = parse_interp_string_content(raw)
         else:
             val, i = parse_attr_value(s, i)
         attrs[key] = val
+        attr_starts[key] = value_start
         i = skip_ws(s, i)
 
     if i < len(s) and s.startswith("/>", i):
-        return Element(name=name, attrs=attrs, children=[], self_closing=True), i + 2
+        return (
+            Element(
+                name=name,
+                attrs=attrs,
+                children=[],
+                self_closing=True,
+                attr_starts=attr_starts,
+            ),
+            i + 2,
+        )
 
     if i < len(s) and s[i] == ">":
         i += 1
         if name.lower() == "br":
-            return Element(name="br", attrs=attrs, children=[], self_closing=True), i
+            return (
+                Element(
+                    name="br",
+                    attrs=attrs,
+                    children=[],
+                    self_closing=True,
+                    attr_starts=attr_starts,
+                ),
+                i,
+            )
         children, i = parse_element_list(s, i)
         i = skip_ws(s, i)
         close = f"</{name}>"
         if not s.startswith(close, i):
             raise NwikiError(f"expected {close}", index=i)
-        return Element(name=name, attrs=attrs, children=children), i + len(close)
+        return (
+            Element(
+                name=name,
+                attrs=attrs,
+                children=children,
+                attr_starts=attr_starts,
+            ),
+            i + len(close),
+        )
 
     raise NwikiError("malformed tag", index=i)
 

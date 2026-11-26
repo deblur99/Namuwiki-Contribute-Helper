@@ -50,6 +50,13 @@ def paint_to_wiki(val, *, lower: bool = False) -> str:
         return norm_hex(str(val.args[0]), lower=lower)
     if isinstance(val, CallExpr) and val.name == "HexColor":
         if val.kwargs:
+            has_light = "light" in val.kwargs
+            has_dark = "dark" in val.kwargs
+            if has_light or has_dark:
+                if not has_light or not has_dark:
+                    raise NwikiError(
+                        "HexColor dual-theme requires both light= and dark="
+                    )
             light = str(val.kwargs.get("light", ""))
             dark = str(val.kwargs.get("dark", ""))
             return f"{norm_hex(light, lower=True)},{norm_hex(dark, lower=True)}"

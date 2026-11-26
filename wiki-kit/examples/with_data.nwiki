@@ -8,7 +8,7 @@ import DesignSystem from "./data/design-system.json"
     width=LayoutLength(500)
     align=.right
     borderColor=HexColor("${DesignSystem.accentColor}")
-    bgColor=HexColor(light="${DesignSystem.white}", dark="#1C1D1F")>
+    bgColor=HexColor(light="${DesignSystem.white}" dark="#1C1D1F")>
     <TableRow>
       <TableColumn colSpan=2 bgColor=HexColor("${DesignSystem.accentColor}")>
         <TitleText text="데이터 주입" />
@@ -16,7 +16,7 @@ import DesignSystem from "./data/design-system.json"
     </TableRow>
     <TableRow>
       <TableColumn colSpan=2 nopad=true>
-        <Image fileName="${DesignSystem.profileImage}" width=LayoutLength(100, .percent) />
+        <Image fileName="${DesignSystem.profileImage}" width=LayoutLength(100 .percent) />
       </TableColumn>
     </TableRow>
   </Table>

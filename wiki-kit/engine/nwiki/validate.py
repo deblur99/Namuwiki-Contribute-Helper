@@ -2,14 +2,55 @@
 
 from __future__ import annotations
 
-from .ast import Document, Element
+from .ast import Document, Element, EnumRef, MemberAccess
 from .docpath import needs_document_context, resolve_to_document
 from .errors import NwikiError
+from .paint import paint_to_wiki
+
+# Attrs serialized via paint_to_wiki / _hex during render
+_PAINT_ATTRS = frozenset(
+    {
+        "color",
+        "bgColor",
+        "borderColor",
+        "colBgColor",
+        "colColor",
+    }
+)
 
 
 def validate_document(doc: Document) -> None:
     for el in doc.template:
         _walk(el, parent=None, heading_depth=None, document_name=doc.document_name)
+    for el in doc.template:
+        _validate_paint_attrs(el)
+
+
+def _bare_message(err: NwikiError) -> str:
+    msg = err.args[0] if err.args else str(err)
+    if isinstance(msg, str) and err.index is not None:
+        suf = f" (at {err.index})"
+        if msg.endswith(suf):
+            return msg[: -len(suf)]
+    return str(msg)
+
+
+def _validate_paint_attrs(el: Element) -> None:
+    for name, val in el.attrs.items():
+        if name not in _PAINT_ATTRS or val is None:
+            continue
+        # Bare DesignSystem dual strings / HexColor / presets only
+        if isinstance(val, (int, float, bool)):
+            continue
+        try:
+            paint_to_wiki(val)
+        except NwikiError as e:
+            raise NwikiError(
+                _bare_message(e),
+                index=el.attr_starts.get(name),
+            ) from e
+    for ch in el.children:
+        _validate_paint_attrs(ch)
 
 
 def _walk(
@@ -19,6 +60,10 @@ def _walk(
     document_name: str | None,
 ) -> None:
     if el.name == "TableRow":
+        if el.attrs.get("borderColor") is not None:
+            raise NwikiError(
+                "borderColor is Table-only (namuwiki tablebordercolor)"
+            )
         if not el.children:
             raise NwikiError("TableRow must contain at least one TableColumn")
         for ch in el.children:
@@ -26,9 +71,27 @@ def _walk(
                 raise NwikiError(
                     f"TableRow direct child must be TableColumn, got {ch.name}"
                 )
+    if el.name == "TableColumn":
+        if el.attrs.get("borderColor") is not None:
+            raise NwikiError(
+                "borderColor is Table-only (namuwiki tablebordercolor)"
+            )
+    if el.name == "Image":
+        fn = el.attrs.get("fileName")
+        src = el.attrs.get("src")
+        if fn is not None and isinstance(fn, (EnumRef, MemberAccess)):
+            label = (
+                fn.name
+                if isinstance(fn, EnumRef)
+                else ".".join(fn.parts)
+            )
+            raise NwikiError(
+                f"unknown image binding {label!r}; "
+                'use import Name from "….png" then fileName=Name'
+            )
+        if fn is None and src is None:
+            raise NwikiError("Image requires fileName or src")
     if el.name == "Box":
-        from .ast import EnumRef
-
         for banned in (
             "color",
             "textAlign",
@@ -66,6 +129,17 @@ def _walk(
         title = el.attrs.get("title")
         if not isinstance(title, str) or not title:
             raise NwikiError("Folding requires title string")
+    if el.name == "List":
+        if not el.children:
+            raise NwikiError("List must contain at least one ListItem")
+        for ch in el.children:
+            if ch.name != "ListItem":
+                raise NwikiError(
+                    f"List direct child must be ListItem, got {ch.name}"
+                )
+    if el.name == "ListItem":
+        if parent is None or parent.name != "List":
+            raise NwikiError("ListItem must be a direct child of List")
     if el.name == "Link":
         _validate_link_targets(el, document_name)
     if el.name == "Heading":

@@ -54,13 +54,73 @@ class IntroduceGoldenTest(unittest.TestCase):
             """
 <template>
   <TitleText text="김마리" color=HexColor("#fff") />
-  <TitleText text="듀얼" color=HexColor(light="#8e8e8e", dark="#ffffff") />
+  <TitleText text="듀얼" color=HexColor(light="#8e8e8e" dark="#ffffff") />
 </template>
 """
         )
         out = render_document(doc)
         self.assertIn("{{{#fff {{{+1 '''김마리'''}}}}}", out)
         self.assertIn("{{{#8e8e8e,#ffffff {{{+1 '''듀얼'''}}}}}", out)
+
+    def test_call_args_space_separated_rejects_comma_and_colon(self) -> None:
+        from engine.nwiki.errors import NwikiError
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.render import render_document
+
+        ok = parse_document(
+            """
+<template>
+  <Text text="x" color=HexColor(light="#fff" dark="#000") />
+  <Image fileName="a.png" width=LayoutLength(100 .percent) />
+</template>
+"""
+        )
+        out = render_document(ok)
+        self.assertIn("#fff,#000", out)
+        self.assertIn("width=100%", out)
+
+        with self.assertRaises(NwikiError) as cm_comma:
+            parse_document(
+                '<template><Text text="x" color=HexColor(light="#fff", dark="#000") /></template>'
+            )
+        self.assertIn("',' is only for lists", str(cm_comma.exception))
+
+        with self.assertRaises(NwikiError) as cm_colon:
+            parse_document(
+                '<template><Text text="x" color=HexColor(light: "#fff" dark: "#000") /></template>'
+            )
+        self.assertIn("use 'light=…'", str(cm_colon.exception))
+
+        # lists still use commas
+        doc_list = parse_document(
+            """
+<template>
+  <Text text="x" decoration=[.line-through, .italic] />
+</template>
+"""
+        )
+        render_document(doc_list)
+
+    def test_validate_hexcolor_missing_dark_has_attr_index(self) -> None:
+        from engine.nwiki.errors import NwikiError
+        from engine.nwiki.parser import parse_document
+        from engine.nwiki.resolve import resolve_document
+        from engine.nwiki.validate import validate_document
+
+        bad = 'HexColor(light="#FFFFFF")'
+        src = (
+            'document("t")\n'
+            "<template>\n"
+            f'  <Text text="x" color={bad} />\n'
+            "</template>\n"
+        )
+        expect = src.index(bad)
+        doc = parse_document(src)
+        resolved = resolve_document(doc)
+        with self.assertRaises(NwikiError) as cm:
+            validate_document(resolved)
+        self.assertEqual(cm.exception.index, expect)
+        self.assertIn("light= and dark=", str(cm.exception))
 
     def test_text_size_and_color_nested(self) -> None:
         from engine.nwiki.parser import parse_document
@@ -158,7 +218,7 @@ class IntroduceGoldenTest(unittest.TestCase):
         )
         b = render_document(
             parse_document(
-                'includeFrame(.discussion, "표제어")\n<template></template>\n'
+                'includeFrame(.discussion "표제어")\n<template></template>\n'
             )
         )
         self.assertEqual(a, b)
@@ -435,24 +495,24 @@ document("김마리(가수)/음반 목록")
 <template>
   <Box
     opacity=0.5
-    background=LinearGradient(.toRight, HexColor("#FFB9B9"), HexColor("#FFFDBB"))>
+    background=LinearGradient(.toRight HexColor("#FFB9B9") HexColor("#FFFDBB"))>
     <Text text="x" />
   </Box>
   <Box
     background=LinearGradient(
-      direction: .toRight,
-      ColorStop(HexColor("#AFEEEE"), at: 65),
-      ColorStop(HexColor("#4682B4"), at: 80)
-    )>
+ direction=.toRight 
+ ColorStop(HexColor("#AFEEEE") at=65) 
+ ColorStop(HexColor("#4682B4") at=80)
+ )>
     <Text text="y" />
   </Box>
   <Box
     bgColor=HexColor("#fff")
-    background=RadialGradient(.circle, atX: 50, atY: 0, HexColor("#000"), ColorStop(.transparent, at: 30))
+    background=RadialGradient(.circle atX=50 atY=0 HexColor("#000") ColorStop(.transparent at=30))
     opacity=1>
     <Text text="z" />
   </Box>
-  <Box background=RgbaColor(255, 255, 255, 0.875)>
+  <Box background=RgbaColor(255 255 255 0.875)>
     <Text text="a" />
   </Box>
 </template>
@@ -537,7 +597,7 @@ document("김마리(가수)/음반 목록")
 
         comp = ROOT / "examples" / "_tmp_props_comp.nwiki"
         comp.write_text(
-            "props {\n  name: String\n}\n"
+            "props {\n  name: required\n}\n"
             "<template><Text text=\"${props.name}\" /></template>\n",
             encoding="utf-8",
         )
@@ -567,7 +627,7 @@ document("김마리(가수)/음반 목록")
         resolve_document(standalone)
 
         bad = parse_document(
-            "props {\n  name: String\n}\n"
+            "props {\n  name: required\n}\n"
             '<template><Text text="${props.missing}" /></template>\n',
             path=str(comp),
         )
@@ -589,7 +649,7 @@ document("김마리(가수)/음반 목록")
         self.assertIn("#87ceeb", out.lower())
         self.assertIn("<:>", out)
         self.assertIn("flex-direction: column", out)
-        self.assertIn("<#ddd,#222>", out)
+        self.assertIn("<bgcolor=#ddd,#222>", out)
         self.assertIn("{{{#ffffff {{{+1 '''김마리'''}}}}}", out)
         self.assertIn("{{{#ffffff {{{-1 '''관련 문서'''}}}}}", out)
 

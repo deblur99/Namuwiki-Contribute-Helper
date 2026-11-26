@@ -19,6 +19,16 @@ def is_nwiki_import_arg(arg: object) -> bool:
     return isinstance(arg, str) and arg.lower().endswith(".nwiki")
 
 
+_ASSET_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
+
+
+def is_asset_import_arg(arg: object) -> bool:
+    if not isinstance(arg, str):
+        return False
+    lower = arg.lower()
+    return any(lower.endswith(suf) for suf in _ASSET_SUFFIXES)
+
+
 def resolve_json_path(path_arg: str, *, entry: Path) -> Path:
     """Resolve relative path against the .nwiki file directory; absolute as-is."""
     p = Path(path_arg)
@@ -66,7 +76,7 @@ def component_import_names(doc: Document) -> dict[str, CallStmt]:
         if s.name != "import" or not s.args:
             continue
         arg = s.args[0]
-        if is_json_import_arg(arg):
+        if is_json_import_arg(arg) or is_asset_import_arg(arg):
             continue
         binding = import_binding(s)
         if binding:
@@ -81,6 +91,37 @@ def component_import_names(doc: Document) -> dict[str, CallStmt]:
         if isinstance(arg, str):
             names[arg] = s
     return names
+
+
+def resolve_asset_imports(doc: Document) -> Document:
+    """
+    import Logo from \"….png\" → doc.asset_bindings[Logo] = basename.
+    Requires the file to exist on disk. Drops those import stmts.
+    """
+    entry = Path(doc.path) if doc.path else Path(".")
+    bindings: dict[str, str] = dict(doc.asset_bindings)
+    kept: list[CallStmt] = []
+
+    for s in doc.stmts:
+        if s.name == "import" and s.args and is_asset_import_arg(s.args[0]):
+            path_arg = s.args[0]
+            assert isinstance(path_arg, str)
+            resolved = resolve_json_path(path_arg, entry=entry)
+            if not resolved.is_file():
+                raise NwikiError(
+                    f"cannot load image import {path_arg!r}: file not found "
+                    f"(resolved {resolved})"
+                )
+            name = import_binding(s) or resolved.stem
+            if name in bindings:
+                raise NwikiError(f"duplicate asset import {name!r}")
+            bindings[name] = resolved.name  # wiki [[파일:basename]]
+            continue
+        kept.append(s)
+
+    doc.stmts = kept
+    doc.asset_bindings = bindings
+    return doc
 
 
 def resolve_json_imports(doc: Document) -> Document:

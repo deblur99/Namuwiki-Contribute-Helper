@@ -1,0 +1,8 @@
+/*
+Image import binding — import Logo from assets, then fileName=Logo
+*/
+import Logo from "./assets/logo.png"
+
+<template>
+  <Image fileName=Logo width=LayoutLength(100) />
+</template>

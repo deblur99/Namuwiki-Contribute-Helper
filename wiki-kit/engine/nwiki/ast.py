@@ -47,6 +47,8 @@ class Element:
     attrs: dict[str, AttrValue] = field(default_factory=dict)
     children: list[Element] = field(default_factory=list)
     self_closing: bool = False
+    # attr name → absolute source index of value start (for diagnostics)
+    attr_starts: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -58,10 +60,9 @@ class CallStmt:
 
 @dataclass
 class PropDecl:
-    """Component prop from top-level `props { name: String }`."""
+    """Component prop from top-level `props { name: required, age }` (always String)."""
 
     name: str
-    type_name: str
     optional: bool = False
 
 
@@ -72,5 +73,7 @@ class Document:
     template: list[Element] = field(default_factory=list)
     # binding name → flat string map from JSON import
     data_namespaces: dict[str, dict[str, str]] = field(default_factory=dict)
+    # import Logo from "….png" → Logo → basename for [[파일:…]]
+    asset_bindings: dict[str, str] = field(default_factory=dict)
     document_name: str | None = None
     prop_decls: dict[str, PropDecl] = field(default_factory=dict)

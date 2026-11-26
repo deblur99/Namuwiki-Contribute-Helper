@@ -74,7 +74,27 @@ def parse_enum_or_member(s: str, i: int) -> tuple[EnumRef | CallExpr, int]:
     return EnumRef(name=name), i
 
 
+def _starts_value(s: str, i: int) -> bool:
+    """True if a call/list argument value can start at i (no leading ws assumed)."""
+    if i >= len(s):
+        return False
+    ch = s[i]
+    if ch in "\"'#[.":
+        return True
+    if ch.isdigit() or (
+        ch in "+-" and i + 1 < len(s) and s[i + 1].isdigit()
+    ):
+        return True
+    if ch.isalpha() or ch == "_":
+        return True
+    return False
+
+
 def parse_call_args(s: str, i: int, name: str) -> tuple[CallExpr, int]:
+    """Parse `(…)` args. Siblings are space-separated; ',' only allowed in lists.
+
+    Labeled args use ident=value only (ident: value is an error).
+    """
     if s[i] != "(":
         raise NwikiError("expected '('", index=i)
     i += 1
@@ -86,7 +106,7 @@ def parse_call_args(s: str, i: int, name: str) -> tuple[CallExpr, int]:
 
     while True:
         i = skip_ws(s, i)
-        # labeled: ident=value | ident: value  OR bare value / nested call
+        # labeled: ident=value  OR bare value / nested call
         if i < len(s) and (s[i].isalpha() or s[i] == "_"):
             ident, j = parse_ident(s, i)
             j2 = skip_ws(s, j)
@@ -97,10 +117,10 @@ def parse_call_args(s: str, i: int, name: str) -> tuple[CallExpr, int]:
             elif j2 < len(s) and s[j2] == ":" and not (
                 j2 + 1 < len(s) and s[j2 + 1] == "/"
             ):
-                # Date(year: 1994) style
-                i = j2 + 1
-                val, i = parse_value(s, i)
-                kwargs[ident] = val
+                raise NwikiError(
+                    f"use '{ident}=…' not '{ident}: …' in call args",
+                    index=j2,
+                )
             else:
                 val, i = parse_value(s, i)
                 args.append(val)
@@ -108,12 +128,16 @@ def parse_call_args(s: str, i: int, name: str) -> tuple[CallExpr, int]:
             val, i = parse_value(s, i)
             args.append(val)
         i = skip_ws(s, i)
-        if i < len(s) and s[i] == ",":
-            i += 1
-            continue
         if i < len(s) and s[i] == ")":
             return CallExpr(name=name, args=args, kwargs=kwargs), i + 1
-        raise NwikiError("expected ',' or ')' in call", index=i)
+        if i < len(s) and s[i] == ",":
+            raise NwikiError(
+                "use spaces between call args; ',' is only for lists […]",
+                index=i,
+            )
+        if _starts_value(s, i):
+            continue
+        raise NwikiError("expected ')' or next argument in call", index=i)
 
 
 def parse_hex_literal(s: str, i: int) -> tuple[str, int]:
