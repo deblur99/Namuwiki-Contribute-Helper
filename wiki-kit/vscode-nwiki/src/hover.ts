@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { hexHoverAt } from "./colors";
 import { resolveDocsForSymbol, wordAt } from "./docs";
 import { loadJsonNamespaces } from "./jsonData";
 
@@ -7,6 +8,9 @@ export class NwikiHoverProvider implements vscode.HoverProvider {
     document: vscode.TextDocument,
     position: vscode.Position
   ): vscode.Hover | undefined {
+    const colorHover = hexHoverAt(document, position);
+    if (colorHover) return colorHover;
+
     const jsonHover = hoverJsonKey(document, position);
     if (jsonHover) return jsonHover;
 
