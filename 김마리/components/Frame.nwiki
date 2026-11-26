@@ -12,13 +12,8 @@ import DesignSystem from "../data/design-system.json"
 category("둘러보기 틀/밴드")
 category("김마리(가수)")
 
-extension DesignSystem {
-  static let defaultColor = HexColor(light: #222, dark: #ddd)
-  static let defaultBgColor = HexColor(light: #ddd, dark: #222)
-}
-
 <template>
-  <Table width=LayoutLength(100, .percent) bgColor=HexColor("${DesignSystem.accentColor}")>
+  <Table width=LayoutLength(100 .percent) bgColor=HexColor("${DesignSystem.accentColor}")>
     <TableRow>
       <TableColumn alignment=.center>
         <Link toDocument="김마리(가수)">
@@ -70,5 +65,3 @@ extension DesignSystem {
 
   </Table>
 </template>
-
-

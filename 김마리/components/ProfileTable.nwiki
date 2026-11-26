@@ -10,7 +10,7 @@ ProfileTable — 인포박스(프로필 표) 재사용 템플릿 예제
 /// - 사용: `import ProfileTable from "…"` 후 `<ProfileTable name="…" />`
 
 props {
-  name: String
+  name: required
 }
 
 <template>
