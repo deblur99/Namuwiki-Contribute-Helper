@@ -33,14 +33,14 @@ export const TYPE_DOCS: Record<string, string> = {
     "키는 JSON flat string만. template에서 `DesignSystem.key` / `${DesignSystem.key}`. " +
     "임의 타입·extension·let 선언 없음 (예약 HexColor 등만 호출).",
   LayoutLength:
-    "레이아웃 길이. `LayoutLength(n)` 또는 `LayoutLength(n, .percent)`.\n\npercent일 때 0…100, point일 때 length > 0.",
+    "레이아웃 길이. `LayoutLength(n)` 또는 `LayoutLength(n .percent)`.\n\npercent일 때 0…100, point일 때 length > 0.",
   TextSize:
     "텍스트 크기. `TextSize.step(n)` → 위키 `{{{+n}}}` 상대 크기.",
   Spacing: "CSS margin/padding용 간격. 단일·축·사방 init 지원.",
-  Border: "`Border(width:, style: .solid)` — width 0이면 `border: none`.",
+  Border: "`Border(width=1 style=.solid)` — width 0이면 `border: none`.",
   RgbaColor: "CSS `rgba()` — wiki style / 그라데이션 투명도.",
   LinearGradient: "선형 그라데이션. 방향 enum + 색 스톱.",
-  ColorStop: "그라데이션 스톱. `ColorStop(color, at: percent)`.",
+  ColorStop: "그라데이션 스톱. `ColorStop(color at=percent)`.",
   CommonFrame:
     "자주 쓰는 공통 틀 enum. `includeFrame(.case)` / associated-call 지원.\n\n`adult` = 틀:선정성 (구어 19금).",
 };
@@ -201,8 +201,8 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
       {
         name: "initLightDark",
         kind: "init",
-        insert: "HexColor(light: ${1:#FFFFFF}, dark: ${2:#1C1D1F})",
-        detail: "init(light:dark:) — bare #hex OK",
+        insert: "HexColor(light=${1:#FFFFFF} dark=${2:#1C1D1F})",
+        detail: "init(light= dark=) — bare #hex OK",
       },
       {
         name: "hex",
@@ -280,7 +280,7 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
       {
         name: "initPercent",
         kind: "init",
-        insert: "LayoutLength(${1:100}, .percent)",
+        insert: "LayoutLength(${1:100} .percent)",
         detail: "init(_: .percent)",
       },
       {
@@ -320,14 +320,14 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
       {
         name: "initAxes",
         kind: "init",
-        insert: "Spacing(vertical: ${1:5}, horizontal: ${2:10})",
+        insert: "Spacing(vertical=${1:5} horizontal=${2:10})",
         detail: "vertical/horizontal",
       },
       {
         name: "initSides",
         kind: "init",
         insert:
-          "Spacing(top: ${1:0}, right: ${2:0}, bottom: ${3:0}, left: ${4:0})",
+          "Spacing(top=${1:0} right=${2:0} bottom=${3:0} left=${4:0})",
         detail: "top/right/bottom/left",
       },
     ],
@@ -338,13 +338,13 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
       {
         name: "init",
         kind: "init",
-        insert: "Border(width: ${1:1}, style: .solid)",
+        insert: "Border(width=${1:1} style=.solid)",
         detail: "init(width:style:)",
       },
       {
         name: "none",
         kind: "init",
-        insert: "Border(width: 0)",
+        insert: "Border(width=0)",
         detail: "→ border: none",
       },
     ],
@@ -355,7 +355,7 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
       {
         name: "init",
         kind: "init",
-        insert: "RgbaColor(${1:255}, ${2:255}, ${3:255}, ${4:0.5})",
+        insert: "RgbaColor(${1:255} ${2:255} ${3:255} ${4:0.5})",
         detail: "init(r,g,b,a)",
       },
     ],
@@ -367,7 +367,7 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
         name: "init",
         kind: "init",
         insert:
-          'LinearGradient(.toRight, HexColor("${1:#FFB9B9}"), HexColor("${2:#FFFDBB}"))',
+          'LinearGradient(.toRight HexColor("${1:#FFB9B9}") HexColor("${2:#FFFDBB}"))',
         detail: "direction + stops",
       },
     ],
@@ -378,7 +378,7 @@ export const TYPE_MEMBERS: Record<string, TypeInfo> = {
       {
         name: "init",
         kind: "init",
-        insert: 'ColorStop(HexColor("${1:#AFEEEE}"), at: ${2:65})',
+        insert: 'ColorStop(HexColor("${1:#AFEEEE}") at=${2:65})',
         detail: "color + at%",
       },
     ],

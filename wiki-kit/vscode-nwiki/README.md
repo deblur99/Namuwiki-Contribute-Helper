@@ -33,11 +33,14 @@ Output 채널 `nwiki`에 `nwiki extension activated`가 보이면 로드된 것.
 | 스니펫 | `tbl`, `tr`, `tc`, `tx`, `lk`, `img`, `cmt`, `cat`, `imp` … |
 | 스타터 | `nwframe` / `nwprofile` / `nwpage` 약어, 또는 명령 팔레트 Insert * Template (문서명=`nwiki.json`/`document`) |
 | Emmet | `nwiki`에서 제외 (HTML 오제안 방지). 스타터는 스니펫·명령으로 제공 |
+| Go to Definition | `import Name from "path"` — Name·경로에 Cmd/Ctrl+클릭 → 해당 `.json`/`.nwiki` 파일 |
+| import 경로 완성 | `from "` / `/` 입력 시 상대 경로·`.json`/`.nwiki`/폴더 자동완성 |
+| import 바인딩 완성 | `import Desig` → `DesignSystem` 선택 시 `from "…"`까지 넣고 다음 줄에 커서 |
 | 진단 | 빨간 밑줄 + hover (파서·오타·알 수 없는 태그·JSON/nwiki import 실패) |
 | Quick Fix | `Ctrl+.` / `Cmd+.` — 오타·태그 제안, 누락 `.json`(빈 `{}` 생성)·`.nwiki`(New Component) |
 | 정렬 | 저장 시(기본), `Ctrl+Alt+L` / `Cmd+Option+L`, 선택적 개행 시 |
 | 빌드 | 확장 내장 `runtime/` 엔진으로 빌드 (문서 폴더만 열어도 OK). `nwiki.json` 있으면 `{프로젝트}/outputs/<stem>.md` |
-| 프리뷰 | 빌드 후 나무위키 raw 근사 HTML Webview (표·문단·wiki style·접기 등) |
+| 프리뷰 | 빌드 후 근사 HTML Webview — 라이트/다크, 뷰포트 프리셋, 배율(Cmd/Ctrl+휠·+/-) |
 | 태그 닫기 | `/` → `/>` (속성 있는 태그는 `<Tag \| />` 슬롯, ↑↓면 여백 취소) · `>` → `></Tag>`, Enter 시 줄바꿈 확장 |
 | 태그 여러 줄 | 커서 `<Tag …>` 안 + `Ctrl+M` — 속성 여러 줄 ↔ 한 줄 토글 (Xcode Format to Multiple Lines) |
 | 주석 | `<template>` 안 `<!-- … -->` / 밖 한 줄 `//`·여러 줄 `/* */` (저장 시 포맷이 맞춤). 문서 `///` 유지·엔진 제거. Cmd+/ 기본은 밖 스타일(`//`) |

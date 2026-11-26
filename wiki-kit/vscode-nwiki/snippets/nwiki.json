@@ -2,7 +2,7 @@
   "Table skeleton": {
     "prefix": "tbl",
     "body": [
-      "<Table width=LayoutLength(${1:500}) align=.${2|right,center,left|} borderColor=HexColor(\"${3:#87CEEB}\") bgColor=HexColor(light=\"${4:#FFFFFF}\", dark=\"${5:#1C1D1F}\")>",
+      "<Table width=LayoutLength(${1:500}) align=.${2|right,center,left|} borderColor=HexColor(\"${3:#87CEEB}\") bgColor=HexColor(light=\"${4:#FFFFFF}\" dark=\"${5:#1C1D1F}\")>",
       "\t<TableRow>",
       "\t\t<TableColumn>",
       "\t\t\t$0",
@@ -104,22 +104,29 @@
   },
   "import from": {
     "prefix": "imp",
-    "body": "import ${1:DesignSystem} from \"${2:./data/design-system.json}\"",
+    "body": [
+      "import ${1:DesignSystem} from \"${2:./data/design-system.json}\"",
+      "$0"
+    ],
     "description": "import Name from \"path\" (.json | .nwiki)"
   },
   "import component": {
     "prefix": "impc",
-    "body": "import ${1:ProfileTable} from \"${2:./components/ProfileTable.nwiki}\"",
+    "body": [
+      "import ${1:ProfileTable} from \"${2:./components/ProfileTable.nwiki}\"",
+      "$0"
+    ],
     "description": "import component from .nwiki"
   },
   "props block": {
     "prefix": "props",
     "body": [
       "props {",
-      "\t${1:name}: ${2:String}",
+      "\t${1:name}: required",
+      "\t${2:age}",
       "}"
     ],
-    "description": "Component props { name: Type }"
+    "description": "Component props { name: required, age }"
   },
   "Starter Frame": {
     "prefix": "nwframe",
@@ -132,7 +139,7 @@
       "category(\"${1:문서명}\")",
       "",
       "<template>",
-      "\t<Table width=LayoutLength(100, .percent) bgColor=HexColor(\"\\${DesignSystem.accentColor}\")>",
+      "\t<Table width=LayoutLength(100 .percent) bgColor=HexColor(\"\\${DesignSystem.accentColor}\")>",
       "\t\t<TableRow>",
       "\t\t\t<TableColumn alignment=.center>",
       "\t\t\t\t<Link toDocument=\"${1:문서명}\">",
@@ -156,11 +163,11 @@
     "prefix": "nwprofile",
     "body": [
       "props {",
-      "\tname: String",
+      "\tname: required",
       "}",
       "",
       "<template>",
-      "\t<Table width=LayoutLength(500) align=.right borderColor=HexColor(\"#00BFFF\") bgColor=HexColor(light=\"#FFFFFF\", dark=\"#1C1D1F\")>",
+      "\t<Table width=LayoutLength(500) align=.right borderColor=HexColor(\"#00BFFF\") bgColor=HexColor(light=\"#FFFFFF\" dark=\"#1C1D1F\")>",
       "\t\t<TableRow>",
       "\t\t\t<TableColumn colSpan=2 bgColor=HexColor(\"#87CEEB\")>",
       "\t\t\t\t<TitleText text=\"\\${props.name}\" />",
@@ -168,7 +175,7 @@
       "\t\t</TableRow>",
       "\t\t<TableRow>",
       "\t\t\t<TableColumn colSpan=2 nopad=true>",
-      "\t\t\t\t<Image fileName=\"${1:프로필.jpg}\" width=LayoutLength(100, .percent) />",
+      "\t\t\t\t<Image fileName=\"${1:프로필.jpg}\" width=LayoutLength(100 .percent) />",
       "\t\t\t</TableColumn>",
       "\t\t</TableRow>",
       "\t\t<TableRow>",
@@ -273,7 +280,7 @@
   "LinearGradient Box": {
     "prefix": "boxgrad",
     "body": [
-      "<Box background=LinearGradient(.toRight, HexColor(\"${1:#FFB9B9}\"), HexColor(\"${2:#FFFDBB}\")) opacity=${3:1}>",
+      "<Box background=LinearGradient(.toRight HexColor(\"${1:#FFB9B9}\") HexColor(\"${2:#FFFDBB}\")) opacity=${3:1}>",
       "\t$0",
       "</Box>"
     ],

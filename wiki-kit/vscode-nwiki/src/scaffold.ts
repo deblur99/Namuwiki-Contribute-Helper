@@ -18,7 +18,9 @@ const DEFAULT_DESIGN_SYSTEM = `{
   "whiteShort": "#fff",
   "black": "#000000",
   "defaultColor": "#222,#ddd",
-  "defaultBgColor": "#ddd,#222"
+  "defaultBgColor": "#ddd,#222",
+  "defaultColorLight": "#FFFFFF",
+  "defaultColorDark": "#1C1D1F"
 }
 `;
 

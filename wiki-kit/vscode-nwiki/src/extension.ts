@@ -1,7 +1,10 @@
 import * as vscode from "vscode";
 import { registerAutoCloseTag } from "./autoCloseTag";
+import { registerCommentCommands } from "./comment";
+import { registerSemanticTokens } from "./semanticTokens";
 import { buildNwikiFile, getOutput, openBuildOutput } from "./build";
 import { NwikiCompletionProvider } from "./completion";
+import { NwikiDefinitionProvider } from "./definition";
 import {
   clearDiagnostics,
   collection,
@@ -13,6 +16,7 @@ import {
   NwikiFormattingProvider,
 } from "./format";
 import { formatTagMultilineAtCursor } from "./formatTagMultiline";
+import { NwikiColorProvider } from "./colors";
 import { NwikiHoverProvider } from "./hover";
 import { disposePreview, showBuildPreview } from "./preview";
 import { NwikiQuickFixProvider } from "./quickFix";
@@ -44,6 +48,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(collection);
   registerAutoCloseTag(context);
+  registerCommentCommands(context);
+  registerSemanticTokens(context);
 
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(
@@ -54,7 +60,8 @@ export function activate(context: vscode.ExtensionContext): void {
       "=",
       ".",
       '"',
-      " " // inside <Tag …> → unset attribute suggestions
+      "'",
+      " " // inside <Tag …> → unset attribute suggestions; `/` also for import paths
     )
   );
 
@@ -62,6 +69,20 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerHoverProvider(
       selector,
       new NwikiHoverProvider()
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerColorProvider(
+      selector,
+      new NwikiColorProvider()
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerDefinitionProvider(
+      selector,
+      new NwikiDefinitionProvider()
     )
   );
 

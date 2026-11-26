@@ -1,19 +1,21 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import {
+  formatPropItem,
+  parsePropsBody,
+  PropInfo,
+  sortPropsRequiredFirst,
+} from "./propsSyntax";
+
+export type { PropInfo };
+export { formatPropItem, parsePropsBody, sortPropsRequiredFirst };
 
 const IMPORT_NWIKI_FROM_RE =
   /\bimport\s+([A-Za-z_][\w]*)\s+from\s+(?:"([^"]+\.nwiki)"|'([^']+\.nwiki)')/gi;
 const IMPORT_LEGACY_RE =
   /\bimport\s*\(\s*(?:([A-Za-z_][\w]*)|"([^"]+)"|'([^']+)')\s*\)/g;
 const PROPS_BLOCK_RE = /\bprops\s*\{([^}]*)\}/s;
-const PROP_LINE_RE = /([A-Za-z_][\w]*)\s*:\s*([A-Za-z_][\w]*)(\?)?/g;
-
-export interface PropInfo {
-  name: string;
-  typeName: string;
-  optional: boolean;
-}
 
 /** Tag name → props from imported component files. */
 export function loadImportedComponentProps(
@@ -71,21 +73,11 @@ export function loadImportedComponentProps(
   return out;
 }
 
+/** Parse `props { name: required, age }` entries (order preserved). */
 export function parsePropsBlock(source: string): PropInfo[] {
   const m = PROPS_BLOCK_RE.exec(source);
   if (!m) return [];
-  const body = m[1];
-  const props: PropInfo[] = [];
-  let pm: RegExpExecArray | null;
-  PROP_LINE_RE.lastIndex = 0;
-  while ((pm = PROP_LINE_RE.exec(body))) {
-    props.push({
-      name: pm[1],
-      typeName: pm[2],
-      optional: Boolean(pm[3]),
-    });
-  }
-  return props;
+  return parsePropsBody(m[1]);
 }
 
 export function componentPropCompletions(
@@ -99,13 +91,56 @@ export function componentPropCompletions(
         p.name,
         vscode.CompletionItemKind.Property
       );
-      item.detail = `${p.typeName}${p.optional ? "?" : ""}`;
+      item.detail = p.optional ? "optional String" : "required String";
       item.insertText = new vscode.SnippetString(`${p.name}="$1"`);
+      item.sortText = p.optional ? `1_${p.name}` : `0_${p.name}`;
       item.documentation = new vscode.MarkdownString(
         p.optional
-          ? `Optional prop (\`${p.typeName}?\`)`
-          : `Required prop (\`${p.typeName}\`)`
+          ? "Optional prop (bare in `props { }`; always String)"
+          : "Required prop (`name: required`; always String)"
       );
       return item;
     });
+}
+
+/** Completions while editing inside a `props { … }` block. */
+export function propsBlockCompletions(
+  linePrefix: string
+): vscode.CompletionItem[] {
+  const afterColon = /:\s*([A-Za-z_][\w]*)?$/.exec(linePrefix);
+  if (afterColon) {
+    const item = new vscode.CompletionItem(
+      "required",
+      vscode.CompletionItemKind.Keyword
+    );
+    item.detail = "mark prop as required";
+    item.insertText = "required";
+    item.documentation = new vscode.MarkdownString(
+      "필수 prop. 선택이면 `:` 없이 이름만 적습니다."
+    );
+    return [item];
+  }
+  if (
+    /[A-Za-z_][\w]*$/.test(linePrefix) ||
+    /\{\s*$/.test(linePrefix) ||
+    /,\s*$/.test(linePrefix)
+  ) {
+    const req = new vscode.CompletionItem(
+      "name: required",
+      vscode.CompletionItemKind.Snippet
+    );
+    req.insertText = new vscode.SnippetString("${1:name}: required");
+    req.detail = "required prop";
+    req.sortText = "0_required";
+
+    const opt = new vscode.CompletionItem(
+      "name (optional)",
+      vscode.CompletionItemKind.Snippet
+    );
+    opt.insertText = new vscode.SnippetString("${1:age}");
+    opt.detail = "optional prop (bare)";
+    opt.sortText = "1_optional";
+    return [req, opt];
+  }
+  return [];
 }

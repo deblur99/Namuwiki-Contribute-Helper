@@ -1,5 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
+import { reorderPropsBlockText } from "./diagnostics";
 
 /** Extract import path from `cannot load import from "…": file not found`. */
 function importPathFromMessage(message: string): string | undefined {
@@ -56,6 +57,23 @@ export class NwikiQuickFixProvider implements vscode.CodeActionProvider {
         edit.replace(document.uri, diag.range, "delimiter");
         action.edit = edit;
         actions.push(action);
+      }
+
+      if (code === "props-order") {
+        const current = document.getText(diag.range);
+        const next = reorderPropsBlockText(current);
+        if (next) {
+          const action = new vscode.CodeAction(
+            "Move required props before optional",
+            vscode.CodeActionKind.QuickFix
+          );
+          action.diagnostics = [diag];
+          action.isPreferred = true;
+          const edit = new vscode.WorkspaceEdit();
+          edit.replace(document.uri, diag.range, next);
+          action.edit = edit;
+          actions.push(action);
+        }
       }
 
       if (code === "parse-error" || code === "unknown-tag") {

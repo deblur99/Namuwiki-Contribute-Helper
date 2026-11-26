@@ -27,10 +27,18 @@ import {
 import {
   componentPropCompletions,
   loadImportedComponentProps,
+  propsBlockCompletions,
 } from "./componentProps";
+import { assetBindingCompletions } from "./assetData";
 import { collectImportedTags } from "./diagnostics";
 import { resolveDocsForSymbol } from "./docs";
+import { importBindingCompletions } from "./importBindingCompletion";
+import {
+  importPathCompletions,
+  importPathQuery,
+} from "./importPathCompletion";
 import { jsonKeyCompletions, loadJsonNamespaces } from "./jsonData";
+import { designSystemImportPath } from "./docTitle";
 import {
   COMMON_FRAME_MEMBERS,
   KNOWN_TYPE_NAMES,
@@ -57,6 +65,27 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
     const compProps = loadImportedComponentProps(document);
 
     const call = openCallFromText(docText, offset);
+
+    // `import Name from "path…"` / `import("path…")` — path segment completion
+    const pathQ = importPathQuery(linePrefix);
+    if (pathQ) {
+      return importPathCompletions(document, position, pathQ);
+    }
+
+    // `import Desig|` — full `import Name from "path"` + next-line cursor
+    const bindingItems = importBindingCompletions(
+      document,
+      position,
+      linePrefix
+    );
+    if (bindingItems) {
+      return bindingItems;
+    }
+
+    // Inside top-level `props { … }`
+    if (inPropsBlock(docText, offset)) {
+      return propsBlockCompletions(linePrefix);
+    }
 
     // Space: constructor kwargs (Spacing/Border/…) first, else unset tag attrs
     if (context.triggerCharacter === " ") {
@@ -197,11 +226,23 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
       );
     }
 
+    // fileName= → imported image bindings
+    if (
+      openComp === "Image" &&
+      (/fileName\s*=\s*[\w]*$/.test(prefix) ||
+        /fileName\s*=\s*"\$\{[\w]*$/.test(prefix))
+    ) {
+      return assetBindingCompletions(document);
+    }
+
     // After = suggest type constructors / value snippets (not global enum dump)
     if (/=\s*[\w]*$/.test(prefix) || /=\s*$/.test(prefix)) {
       const again = attrEnumQuery(prefix);
       if (again) {
         items.push(...enumStringItems(again.values, again.afterDot));
+      }
+      if (openComp === "Image" && /fileName\s*=/.test(prefix)) {
+        items.push(...assetBindingCompletions(document));
       }
       for (const v of VALUE_SNIPPETS) {
         const item = new vscode.CompletionItem(
@@ -237,11 +278,12 @@ export class NwikiCompletionProvider implements vscode.CompletionItemProvider {
           vscode.CompletionItemKind.Function
         );
         if (c === "import") {
+          const dsPath = designSystemImportPath(document.uri.fsPath);
           item.insertText = new vscode.SnippetString(
-            'import ${1:DesignSystem} from "${2:./data/design-system.json}"'
+            `import \${1:DesignSystem} from "\${2:${dsPath}}"\n$0`
           );
           item.documentation = new vscode.MarkdownString(
-            '`import Name from "path"` — `.json` → 네임스페이스, `.nwiki` → 컴포넌트 태그'
+            '`import Name from "path"` — `.json` → ns, `.nwiki` → 태그, 이미지 → `fileName=Name`'
           );
         } else if (c === "includeFrame") {
           item.insertText = new vscode.SnippetString(
@@ -405,6 +447,26 @@ function callKwargCompletions(
     item.sortText = `0_${label}`;
     return item;
   });
+}
+
+/** True when offset is inside a top-level `props { … }` (outside `<template>`). */
+function inPropsBlock(text: string, offset: number): boolean {
+  const before = text.slice(0, offset);
+  const tmpl = before.lastIndexOf("<template");
+  const props = before.lastIndexOf("props");
+  if (props < 0) return false;
+  if (tmpl > props) return false;
+  const open = before.indexOf("{", props);
+  if (open < 0 || open >= offset) return false;
+  const afterOpen = text.slice(open + 1, offset);
+  // Unclosed `{` before cursor and no `}` that closes the block
+  let depth = 1;
+  for (const ch of afterOpen) {
+    if (ch === "{") depth++;
+    if (ch === "}") depth--;
+    if (depth === 0) return false;
+  }
+  return depth > 0;
 }
 
 /**

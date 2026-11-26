@@ -4,7 +4,28 @@
  * comments outside).
  */
 
+import {
+  formatPropItem,
+  parsePropsBody,
+  sortPropsRequiredFirst,
+} from "./propsSyntax";
+
 const BRACE_OPEN_RE = /^(props)\s*\{(.*)$/;
+
+/** Format props body lines with required-first order when parseable. */
+function formatPropsBodyLines(items: string[]): string[] {
+  const joined = items.filter((x) => x.trim()).join(", ");
+  const parsed = parsePropsBody(joined);
+  if (parsed.length === 0) {
+    return items.filter((x) => x.trim() !== "" || items.length === 1);
+  }
+  // Only reorder when every non-empty item parsed (avoid scrambling comments).
+  const nonEmpty = items.filter((x) => x.trim());
+  if (parsed.length !== nonEmpty.length) {
+    return nonEmpty;
+  }
+  return sortPropsRequiredFirst(parsed).map(formatPropItem);
+}
 
 export function formatNwiki(text: string): string {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
@@ -147,19 +168,16 @@ export function formatNwiki(text: string): string {
       if (trimmed === "}" || trimmed.endsWith("}")) {
         const before = trimmed === "}" ? "" : trimmed.slice(0, -1).trim();
         if (before) braceMode.body.push(before);
-        for (const b of braceMode.body) {
-          if (b === "") {
-            out.push("");
-          } else {
-            out.push(indent(braceMode.baseDepth + 1) + b);
-          }
+        const formatted = formatPropsBodyLines(braceMode.body);
+        for (const b of formatted) {
+          out.push(indent(braceMode.baseDepth + 1) + b);
         }
         out.push(indent(braceMode.baseDepth) + "}");
         braceMode = null;
         continue;
       }
       if (trimmed) {
-        braceMode.body.push(trimmed);
+        braceMode.body.push(trimmed.replace(/,\s*$/, "").trim());
       } else if (braceMode.body.length) {
         braceMode.body.push("");
       }
@@ -178,11 +196,12 @@ export function formatNwiki(text: string): string {
         const head = bm[1].replace(/\s+/g, " ").trim();
         const rest = (bm[2] || "").trim();
         if (rest.endsWith("}")) {
-          // one-liner → expand
+          // one-liner → expand (required first)
           const inner = rest.slice(0, -1).trim();
           out.push(`${head} {`);
           if (inner) {
-            for (const part of splitBraceItems(inner)) {
+            const parts = formatPropsBodyLines(splitBraceItems(inner));
+            for (const part of parts) {
               out.push(indent(1) + part);
             }
           }
@@ -194,9 +213,9 @@ export function formatNwiki(text: string): string {
           braceMode = { head, baseDepth: 0, body: [] };
           continue;
         }
-        // `props { name: String` without close yet
+        // `props { name: required` without close yet
         out.push(`${head} {`);
-        braceMode = { head, baseDepth: 0, body: [rest] };
+        braceMode = { head, baseDepth: 0, body: [rest.replace(/,\s*$/, "").trim()] };
         continue;
       }
     }
@@ -256,7 +275,7 @@ export function formatNwiki(text: string): string {
   );
 }
 
-/** Split `name: String, opt: String?` on commas outside nested structures. */
+/** Split `name: required, age` on commas outside nested structures. */
 function splitBraceItems(inner: string): string[] {
   const items: string[] = [];
   let buf = "";

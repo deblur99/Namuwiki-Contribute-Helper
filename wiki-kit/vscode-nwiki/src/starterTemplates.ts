@@ -18,7 +18,7 @@ category("둘러보기 틀")
 category("${t}")
 
 <template>
-  <Table width=LayoutLength(100, .percent) bgColor=HexColor("\${DesignSystem.accentColor}")>
+  <Table width=LayoutLength(100 .percent) bgColor=HexColor("\${DesignSystem.accentColor}")>
     <TableRow>
       <TableColumn alignment=.center>
         <Link toDocument="${t}">
@@ -61,7 +61,7 @@ export function profileTableTemplate(title: string): string {
     width=LayoutLength(500)
     align=.right
     borderColor=HexColor("#00BFFF")
-    bgColor=HexColor(light="#FFFFFF", dark="#1C1D1F")>
+    bgColor=HexColor(light="#FFFFFF" dark="#1C1D1F")>
 
     <TableRow>
       <TableColumn colSpan=2 bgColor=HexColor("#87CEEB")>
@@ -71,7 +71,7 @@ export function profileTableTemplate(title: string): string {
 
     <TableRow>
       <TableColumn colSpan=2 nopad=true>
-        <Image fileName="프로필.jpg" width=LayoutLength(100, .percent) />
+        <Image fileName="프로필.jpg" width=LayoutLength(100 .percent) />
       </TableColumn>
     </TableRow>
 

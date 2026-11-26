@@ -9,8 +9,15 @@ import {
   requiredAttrNames,
   TAG_ATTR_SPEC,
 } from "./catalog";
+import { assetImportDiagnostics } from "./assetData";
 import { jsonImportDiagnostics } from "./jsonData";
+
 import { findWikiKitRoot } from "./paths";
+import {
+  formatPropItem,
+  parsePropsBody,
+  sortPropsRequiredFirst,
+} from "./propsSyntax";
 
 /** `import Name from "path"` — any extension. */
 const IMPORT_FROM_RE =
@@ -38,6 +45,7 @@ export async function diagnose(doc: vscode.TextDocument): Promise<void> {
   const imported = collectImportedTags(text);
   diagnostics.push(...importPathDiagnostics(doc));
   diagnostics.push(...jsonImportDiagnostics(doc));
+  diagnostics.push(...assetImportDiagnostics(doc));
 
   // Lightweight unknown-tag scan (built-ins + import(...))
   const tagRe = /<\/?([A-Za-z_][\w-]*)/g;
@@ -78,12 +86,28 @@ export async function diagnose(doc: vscode.TextDocument): Promise<void> {
   }
 
   diagnostics.push(...requiredAttrDiagnostics(doc));
+  diagnostics.push(...propsOrderDiagnostics(doc));
 
   // Parser-backed diagnostics
   const parserDiags = await runParserDiagnostics(doc);
   diagnostics.push(...parserDiags);
 
   collection.set(doc.uri, diagnostics);
+}
+
+/** End offset for a parser diagnostic: ident/token end, else min(+24, EOL). */
+export function parserDiagnosticEnd(text: string, start: number): number {
+  const n = text.length;
+  if (start >= n) return n;
+  const lineEnd = text.indexOf("\n", start);
+  const limit = lineEnd < 0 ? n : lineEnd;
+  let i = start;
+  if (/[A-Za-z_]/.test(text[i]!)) {
+    i += 1;
+    while (i < limit && /[A-Za-z0-9_-]/.test(text[i]!)) i += 1;
+    return Math.max(i, start + 1);
+  }
+  return Math.min(start + 24, limit);
 }
 
 async function runParserDiagnostics(
@@ -156,17 +180,12 @@ except Exception as e:
         index = parseInt(line.slice(0, tab), 10) || 0;
         message = line.slice(tab + 1).replace(/\s*\(at \d+\)\s*$/, "");
       }
-      const pos = doc.positionAt(
-        Math.min(Math.max(index, 0), doc.getText().length)
-      );
-      const end = doc.positionAt(
-        Math.min(pos.character + 1 + doc.offsetAt(pos), doc.getText().length)
-      );
-      // underline ~20 chars or to EOL
-      const lineEnd = doc.lineAt(pos.line).range.end;
+      const text = doc.getText();
+      const startOff = Math.min(Math.max(index, 0), text.length);
+      const endOff = parserDiagnosticEnd(text, startOff);
       const range = new vscode.Range(
-        pos,
-        end.isAfter(lineEnd) ? lineEnd : end.translate(0, 12)
+        doc.positionAt(startOff),
+        doc.positionAt(endOff)
       );
       const d = new vscode.Diagnostic(
         range,
@@ -236,6 +255,57 @@ export function requiredAttrDiagnostics(
     }
   }
   return diags;
+}
+
+/**
+ * required props must appear before bare (optional) props in `props { }`.
+ */
+export function propsOrderDiagnostics(
+  doc: vscode.TextDocument
+): vscode.Diagnostic[] {
+  const text = doc.getText();
+  const diags: vscode.Diagnostic[] = [];
+  const re = /\bprops\s*\{([^}]*)\}/gs;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const body = m[1];
+    const props = parsePropsBody(body);
+    if (props.length < 2) continue;
+    let seenOptional = false;
+    for (const p of props) {
+      if (p.optional) {
+        seenOptional = true;
+        continue;
+      }
+      if (seenOptional) {
+        const blockStart = m.index;
+        const d = new vscode.Diagnostic(
+          new vscode.Range(
+            doc.positionAt(blockStart),
+            doc.positionAt(blockStart + m[0].length)
+          ),
+          "props: put required (`name: required`) before optional (bare) entries",
+          vscode.DiagnosticSeverity.Warning
+        );
+        d.source = "nwiki";
+        d.code = "props-order";
+        diags.push(d);
+        break;
+      }
+    }
+  }
+  return diags;
+}
+
+/** Rebuild a props block with required-first order (for Quick Fix). */
+export function reorderPropsBlockText(block: string): string | undefined {
+  const m = /^(\s*props\s*\{)([^}]*)(\}\s*)$/s.exec(block);
+  if (!m) return undefined;
+  const props = parsePropsBody(m[2]);
+  if (!props.length) return undefined;
+  const sorted = sortPropsRequiredFirst(props);
+  const inner = sorted.map((p) => `  ${formatPropItem(p)}`).join("\n");
+  return `${m[1].replace(/\s*\{$/, " {")}\n${inner}\n}`;
 }
 
 /**

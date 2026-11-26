@@ -49,6 +49,25 @@
         "path": "./syntaxes/nwiki.tmLanguage.json"
       }
     ],
+    "semanticTokenTypes": [
+      {
+        "id": "nwikiReserved",
+        "description": "Reserved nwiki type (HexColor, LayoutLength, …)"
+      },
+      {
+        "id": "nwikiImport",
+        "description": "Imported binding (DesignSystem, ProfileTable, …)"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "nwiki",
+        "scopes": {
+          "nwikiReserved": ["support.type.nwiki.reserved"],
+          "nwikiImport": ["variable.other.constant.nwiki.import"]
+        }
+      }
+    ],
     "snippets": [
       {
         "language": "nwiki",
@@ -117,9 +136,29 @@
         "command": "nwiki.expandTagPair",
         "title": "nwiki: Expand Tag Pair",
         "enablement": "nwiki.pairGap"
+      },
+      {
+        "command": "nwiki.toggleLineComment",
+        "title": "nwiki: Toggle Line Comment"
+      },
+      {
+        "command": "nwiki.toggleBlockComment",
+        "title": "nwiki: Toggle Block Comment"
       }
     ],
     "keybindings": [
+      {
+        "command": "nwiki.toggleLineComment",
+        "key": "ctrl+/",
+        "mac": "cmd+/",
+        "when": "editorTextFocus && !editorReadonly && editorLangId == nwiki"
+      },
+      {
+        "command": "nwiki.toggleBlockComment",
+        "key": "shift+alt+a",
+        "mac": "shift+alt+a",
+        "when": "editorTextFocus && !editorReadonly && editorLangId == nwiki"
+      },
       {
         "command": "nwiki.formatDocument",
         "key": "ctrl+alt+l",
@@ -189,13 +228,45 @@
       "[nwiki]": {
         "editor.defaultFormatter": "namuwiki-contribute-helper.nwiki",
         "editor.formatOnSave": true,
+        "editor.semanticHighlighting.enabled": true,
+        "editor.links": false,
         "editor.quickSuggestions": {
           "other": true,
           "comments": false,
           "strings": true
         }
       },
-      "emmet.excludeLanguages": ["nwiki"]
+      "emmet.excludeLanguages": ["nwiki"],
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": "support.type.nwiki.reserved",
+            "settings": {
+              "foreground": "#4EC9B0",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "variable.other.constant.nwiki.import",
+            "settings": {
+              "foreground": "#D7BA7D",
+              "fontStyle": ""
+            }
+          }
+        ]
+      },
+      "editor.semanticTokenColorCustomizations": {
+        "rules": {
+          "nwikiReserved": {
+            "foreground": "#4EC9B0",
+            "fontStyle": ""
+          },
+          "nwikiImport": {
+            "foreground": "#D7BA7D",
+            "fontStyle": ""
+          }
+        }
+      }
     }
   },
   "scripts": {

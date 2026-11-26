@@ -9,7 +9,10 @@
     { "include": "#html-comment" },
     { "include": "#script-block" },
     { "include": "#template-block" },
+    { "include": "#import-from" },
     { "include": "#calls" },
+    { "include": "#reserved-types" },
+    { "include": "#namespace-ref" },
     { "include": "#tags" },
     { "include": "#strings" }
   ],
@@ -66,16 +69,35 @@
         { "include": "#html-comment" },
         { "include": "#doc-comment" },
         { "include": "#tags" },
+        { "include": "#reserved-types" },
+        { "include": "#namespace-ref" },
         { "include": "#strings" },
         { "include": "#interpolation" }
       ]
     },
+    "import-from": {
+      "name": "meta.import.nwiki",
+      "match": "\\b(import)\\s+([A-Za-z_][\\w]*)\\s+(from)\\b",
+      "captures": {
+        "1": { "name": "keyword.control.import.nwiki" },
+        "2": { "name": "variable.other.constant.nwiki.import" },
+        "3": { "name": "keyword.control.from.nwiki" }
+      }
+    },
     "calls": {
       "name": "meta.call.nwiki",
-      "match": "\\b(category|include|includeFrame|import)\\s*\\(",
+      "match": "\\b(category|include|includeFrame|document|frame|props)\\b",
       "captures": {
         "1": { "name": "support.function.nwiki" }
       }
+    },
+    "reserved-types": {
+      "name": "support.type.nwiki.reserved",
+      "match": "\\b(HexColor|RgbaColor|LayoutLength|TextSize|Spacing|Border|ColorStop|LinearGradient|RepeatingLinearGradient|RadialGradient|Date|CommonFrame)\\b"
+    },
+    "namespace-ref": {
+      "match": "\\b([A-Z][A-Za-z0-9]*)(?=\\.[A-Za-z_])",
+      "name": "variable.other.constant.nwiki.import"
     },
     "tags": {
       "patterns": [
@@ -95,6 +117,8 @@
               "name": "entity.other.attribute-name.nwiki",
               "match": "\\b([A-Za-z_][\\w-]*)\\s*="
             },
+            { "include": "#reserved-types" },
+            { "include": "#namespace-ref" },
             { "include": "#strings" },
             { "include": "#interpolation" },
             {
@@ -104,6 +128,10 @@
             {
               "name": "variable.other.enum.nwiki",
               "match": "\\.[A-Za-z_][\\w-]*"
+            },
+            {
+              "name": "support.function.nwiki",
+              "match": "\\b(age|dday)\\b"
             }
           ]
         }
@@ -134,9 +162,11 @@
           "name": "variable.other.nwiki",
           "match": "\\bprops\\.[A-Za-z_]\\w*"
         },
+        { "include": "#reserved-types" },
+        { "include": "#namespace-ref" },
         {
           "name": "support.function.nwiki",
-          "match": "\\b(age|dday|Date|LayoutLength|HexColor|RgbaColor|Spacing|Border|ColorStop|LinearGradient|RepeatingLinearGradient|RadialGradient)\\b"
+          "match": "\\b(age|dday)\\b"
         }
       ]
     }
